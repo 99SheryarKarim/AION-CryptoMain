@@ -1,0 +1,52 @@
+/* Add this to your Signup.css file */
+
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 300px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: slideIn 0.3s ease-out forwards;
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  .notification.success {
+    background: linear-gradient(to right, #00b09b, #96c93d);
+  }
+  
+  .notification.error {
+    background: linear-gradient(to right, #ff5f6d, #ffc371);
+  }
+  
+  .close-notification {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    margin-left: 10px;
+    padding: 0 5px;
+  }
+  
+  .close-notification:hover {
+    opacity: 0.8;
+  }
+  

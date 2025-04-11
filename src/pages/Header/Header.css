@@ -1,0 +1,77 @@
+/* Add these styles to your existing Header.css file */
+
+.admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(62, 184, 176, 0.2);
+}
+.contact-btn {
+  white-space: nowrap;
+  /* Existing styles below (include yours if already present) */
+  padding: 8px 16px;
+  border: none;
+  background-color: #3eb8b0;
+  color: white;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+
+.admin-link {
+  color: #ff6b6b !important;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.admin-link::before {
+  content: "🔐";
+  font-size: 14px;
+}
+.no-wrap a {
+  white-space: nowrap;
+}
+
+
+.admin-logout-btn {
+  background: rgba(255, 107, 107, 0.15);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.admin-logout-btn:hover {
+  background: rgba(255, 107, 107, 0.25);
+}
+
+.admin-login-link a {
+  color: #a0aec0 !important;
+  font-size: 14px;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+}
+
+.admin-login-link a:hover {
+  color: #ff6b6b !important;
+  opacity: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .admin-section {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+  }
+}

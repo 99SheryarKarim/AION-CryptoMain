@@ -1,0 +1,1084 @@
+.market-predict__container {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 20px;
+  color: #e0e0e0;
+  background-color: #121621;
+  min-height: 100vh;
+  animation: market-predict-fade-in 0.5s ease-in-out;
+}
+
+@keyframes market-predict-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.market-predict__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #121621;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: market-predict-slide-down 0.5s ease-in-out;
+}
+
+@keyframes market-predict-slide-down {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.market-predict__coin-identity {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.market-predict__coin-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: contain;
+  background-color: #2a2a2a;
+}
+
+.market-predict__coin-title h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.market-predict__coin-price-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.market-predict__current-price {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #5bc0de;
+}
+
+.market-predict__predicted-price {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 5px;
+  color: #ff9632;
+}
+
+.market-predict__positive {
+  color: #4caf50;
+}
+
+.market-predict__negative {
+  color: #f44336;
+}
+
+.market-predict__timestamp {
+  font-size: 0.8rem;
+  color: #777;
+  margin-top: 5px;
+}
+
+.market-predict__chart-container {
+  display: flex;
+  position: relative;
+  margin-bottom: 20px;
+  gap: 20px;
+  height: 350px;
+}
+
+.market-predict__chart-wrapper {
+  flex: 1;
+  background-color: #0a0e17;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.market-predict__price-chart {
+  width: 100%;
+  height: auto;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  shape-rendering: geometricPrecision;
+}
+
+.market-predict__probability-panel,
+.market-predict__stats-panel,
+.market-predict__coin-details-panel {
+  width: 280px;
+  background-color: #121621;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #2a3042;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.market-predict__panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #eee;
+}
+
+.market-predict__panel-header h3 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.market-predict__info-icon,
+.market-predict__stats-icon {
+  color: #777;
+  cursor: pointer;
+}
+
+.market-predict__coin-description p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #ccc;
+}
+
+.market-predict__coin-metrics {
+  margin-top: 15px;
+}
+
+.market-predict__coin-metric {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.market-predict__metric-icon {
+  color: #5bc0de;
+}
+
+.market-predict__metric-content {
+  flex: 1;
+}
+
+.market-predict__metric-label {
+  font-size: 12px;
+  color: #999;
+}
+
+.market-predict__metric-value {
+  font-size: 16px;
+}
+
+.market-predict__market-sentiment,
+.market-predict__exchange-distribution {
+  margin-top: 20px;
+}
+
+.market-predict__market-sentiment h4,
+.market-predict__exchange-distribution h4 {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.market-predict__sentiment-bars,
+.market-predict__exchange-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.market-predict__sentiment-bar,
+.market-predict__exchange-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.market-predict__sentiment-label,
+.market-predict__exchange-label {
+  width: 60px;
+  font-size: 12px;
+  color: #999;
+  text-align: right;
+}
+
+.market-predict__sentiment-progress,
+.market-predict__exchange-progress {
+  flex: 1;
+  height: 8px;
+  background-color: #333;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.market-predict__sentiment-progress-bar,
+.market-predict__exchange-progress-bar {
+  height: 100%;
+}
+
+.market-predict__sentiment-progress-bar--bullish {
+  background-color: #5cb85c;
+}
+
+.market-predict__sentiment-progress-bar--bearish {
+  background-color: #d9534f;
+}
+
+.market-predict__sentiment-progress-bar--neutral {
+  background-color: #f0ad4e;
+}
+
+.market-predict__exchange-progress-bar {
+  background-color: #5bc0de;
+}
+
+.market-predict__sentiment-value,
+.market-predict__exchange-value {
+  width: 40px;
+  font-size: 12px;
+  text-align: right;
+}
+
+.market-predict__chart-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+  width: 100%;
+}
+
+.market-predict__controls-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+  max-width: 800px;
+}
+
+.market-predict__timeframe-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.market-predict__timeframe-button {
+  background-color: #1a1f2e;
+  color: #fff;
+  border: none;
+  padding: 8px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+  width: 60px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 2px;
+}
+
+.market-predict__timeframe-button:first-of-type {
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+.market-predict__timeframe-button:last-of-type {
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+
+.market-predict__timeframe-button:hover {
+  background-color: #2a3042;
+}
+
+.market-predict__timeframe-button--active {
+  background-color: #5bc0de;
+}
+
+.market-predict__timeframe-button--pending {
+  background-color: #f0ad4e;
+}
+
+.market-predict__control-button-group {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.market-predict__control-button {
+  flex: 1;
+  max-width: 180px;
+  height: 40px;
+  border: none;
+  border-radius: 20px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.market-predict__predict-button {
+  background-color: #ff9632;
+  box-shadow: 0 2px 10px rgba(255, 150, 50, 0.3);
+}
+
+.market-predict__predict-button:hover,
+.market-predict__predict-button--active {
+  background-color: #e88625;
+  box-shadow: 0 2px 15px rgba(255, 150, 50, 0.5);
+}
+
+.market-predict__probability-button {
+  background-color: #5bc0de;
+}
+
+.market-predict__probability-button:hover,
+.market-predict__probability-button--active {
+  background-color: #46b8da;
+}
+
+.market-predict__stats-button {
+  background-color: #5bc0de;
+}
+
+.market-predict__stats-button:hover,
+.market-predict__stats-button--active {
+  background-color: #46b8da;
+}
+
+.market-predict__portfolio-button {
+  background-color: #5bc0de;
+}
+
+.market-predict__portfolio-button:hover {
+  background-color: #46b8da;
+}
+
+.market-predict__market-data {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #121621;
+  border-radius: 8px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.market-predict__market-stats h2 {
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+.market-predict__stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.market-predict__stat-item {
+  padding: 10px;
+  background-color: #1a1f2e;
+  border-radius: 4px;
+}
+
+.market-predict__stat-label {
+  font-size: 12px;
+  color: #999;
+}
+
+.market-predict__stat-value {
+  font-size: 16px;
+}
+
+.market-predict__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+}
+
+.market-predict__loader {
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #3498db;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: market-predict-spin 2s linear infinite;
+}
+
+@keyframes market-predict-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.market-predict__error {
+  color: #d9534f;
+  margin-top: 10px;
+}
+
+.market-predict__notifications {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+.market-predict__notifications::-webkit-scrollbar {
+  width: 5px;
+}
+
+.market-predict__notifications::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.market-predict__notifications::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.market-predict__notification {
+  position: relative;
+  width: 350px;
+  background-color: #1a1f2e;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  border-left: 4px solid #4caf50;
+  color: #fff;
+  animation: market-predict-slide-in-right 0.4s ease-out;
+  transform-origin: top right;
+}
+
+@keyframes market-predict-slide-in-right {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.market-predict__notification-content {
+  display: flex;
+  align-items: flex-start;
+  padding: 15px;
+}
+
+.market-predict__notification-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #4caf50;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.market-predict__notification-text {
+  flex: 1;
+}
+
+.market-predict__notification-text h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #fff;
+  font-weight: 600;
+}
+
+.market-predict__notification-text p {
+  margin: 5px 0 0;
+  font-size: 14px;
+  color: #ccc;
+  line-height: 1.4;
+}
+
+.market-predict__notification-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 10px;
+  transition: color 0.2s;
+  line-height: 1;
+}
+
+.market-predict__notification-close:hover {
+  color: #fff;
+}
+
+.market-predict__notification-progress {
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.market-predict__notification-progress-bar {
+  height: 100%;
+  background-color: #4caf50;
+  width: 0;
+  animation: market-predict-progress 5s linear forwards;
+}
+
+@keyframes market-predict-progress {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+.market-predict__notification--success {
+  border-left-color: #4caf50;
+}
+
+.market-predict__notification--success .market-predict__notification-icon {
+  background-color: #4caf50;
+}
+
+.market-predict__notification--success .market-predict__notification-progress-bar {
+  background-color: #4caf50;
+}
+
+.market-predict__notification--error {
+  border-left-color: #f44336;
+}
+
+.market-predict__notification--error .market-predict__notification-icon {
+  background-color: #f44336;
+}
+
+.market-predict__notification--error .market-predict__notification-progress-bar {
+  background-color: #f44336;
+}
+
+.market-predict__notification--info {
+  border-left-color: #2196f3;
+}
+
+.market-predict__notification--info .market-predict__notification-icon {
+  background-color: #2196f3;
+}
+
+.market-predict__notification--info .market-predict__notification-progress-bar {
+  background-color: #2196f3;
+}
+
+.market-predict__notification--warning {
+  border-left-color: #ff9800;
+}
+
+.market-predict__notification--warning .market-predict__notification-icon {
+  background-color: #ff9800;
+}
+
+.market-predict__notification--warning .market-predict__notification-progress-bar {
+  background-color: #ff9800;
+}
+
+.market-predict__notification--profit {
+  border-left-color: #4caf50;
+}
+
+.market-predict__notification--profit .market-predict__notification-icon {
+  background-color: #4caf50;
+}
+
+.market-predict__notification--profit .market-predict__notification-progress-bar {
+  background-color: #4caf50;
+}
+
+.market-predict__notification--loss {
+  border-left-color: #f44336;
+}
+
+.market-predict__notification--loss .market-predict__notification-icon {
+  background-color: #f44336;
+}
+
+.market-predict__notification--loss .market-predict__notification-progress-bar {
+  background-color: #f44336;
+}
+
+.market-predict__notification-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 0 15px 15px;
+}
+
+.market-predict__notification-action {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.market-predict__notification-action--primary {
+  background-color: #5bc0de;
+  color: white;
+}
+
+.market-predict__notification-action--primary:hover {
+  background-color: #46b8da;
+}
+
+.market-predict__notification-action--secondary {
+  background-color: transparent;
+  color: #ccc;
+  border: 1px solid #555;
+}
+
+.market-predict__notification-action--secondary:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.market-predict__prediction-result {
+  display: flex;
+  align-items: center;
+  margin-top: 5px;
+}
+
+.market-predict__prediction-result-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.market-predict__prediction-result-icon--profit {
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.market-predict__prediction-result-icon--loss {
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+}
+
+.market-predict__prediction-result-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.market-predict__prediction-result-text--profit {
+  color: #4caf50;
+}
+
+.market-predict__prediction-result-text--loss {
+  color: #f44336;
+}
+
+.market-predict__prediction-result-value {
+  font-weight: bold;
+  margin-left: 5px;
+}
+
+.market-predict__analysis-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.market-predict__confidence-meter {
+  display: flex;
+  flex-direction: column;
+}
+
+.market-predict__confidence-label {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 3px;
+}
+
+.market-predict__confidence-bar {
+  height: 8px;
+  background-color: #333;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.market-predict__confidence-value {
+  height: 100%;
+  background-color: #5bc0de;
+  width: 75%;
+}
+
+.market-predict__confidence-percentage {
+  font-size: 14px;
+  margin-top: 3px;
+}
+
+.market-predict__trend-indicator {
+  text-align: center;
+}
+
+.market-predict__trend-badge {
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.market-predict__trend-badge--bullish {
+  background-color: #5cb85c;
+  color: #fff;
+}
+
+.market-predict__trend-badge--bearish {
+  background-color: #d9534f;
+  color: #fff;
+}
+
+.market-predict__key-predictions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.market-predict__prediction-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.market-predict__prediction-label {
+  color: #999;
+}
+
+.market-predict__prediction-value {
+  font-weight: bold;
+}
+
+.market-predict__metrics-mini {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 5px;
+}
+
+.market-predict__metric-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5px;
+  border-radius: 4px;
+  background-color: #1a1f2e;
+}
+
+.market-predict__metric-mini-label {
+  font-size: 10px;
+  color: #999;
+  text-align: center;
+}
+
+.market-predict__metric-mini-value {
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.market-predict__stats-gauge {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.market-predict__stats-chart {
+  width: 100%;
+  height: auto;
+}
+
+.market-predict__stats-content {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.market-predict__stats-info {
+  margin-top: 15px;
+}
+
+.market-predict__stats-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.market-predict__stats-label {
+  font-size: 14px;
+  color: #999;
+}
+
+.market-predict__stats-value {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.market-predict__stats-value--positive {
+  color: #4caf50;
+}
+
+.market-predict__stats-value--negative {
+  color: #f44336;
+}
+
+.market-predict__coin-details-content {
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Add scrollbar styling for the coin details panel */
+.market-predict__coin-details-panel::-webkit-scrollbar,
+.market-predict__probability-panel::-webkit-scrollbar,
+.market-predict__stats-panel::-webkit-scrollbar,
+.market-predict__coin-details-content::-webkit-scrollbar,
+.market-predict__analysis-summary::-webkit-scrollbar,
+.market-predict__stats-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.market-predict__coin-details-panel::-webkit-scrollbar-track,
+.market-predict__probability-panel::-webkit-scrollbar-track,
+.market-predict__stats-panel::-webkit-scrollbar-track,
+.market-predict__coin-details-content::-webkit-scrollbar-track,
+.market-predict__analysis-summary::-webkit-scrollbar-track,
+.market-predict__stats-content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.market-predict__coin-details-panel::-webkit-scrollbar-thumb,
+.market-predict__probability-panel::-webkit-scrollbar-thumb,
+.market-predict__stats-panel::-webkit-scrollbar-thumb,
+.market-predict__coin-details-content::-webkit-scrollbar-thumb,
+.market-predict__analysis-summary::-webkit-scrollbar-thumb,
+.market-predict__stats-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.market-predict__coin-details-panel::-webkit-scrollbar-thumb:hover,
+.market-predict__probability-panel::-webkit-scrollbar-thumb:hover,
+.market-predict__stats-panel::-webkit-scrollbar-thumb:hover,
+.market-predict__coin-details-content::-webkit-scrollbar-thumb:hover,
+.market-predict__analysis-summary::-webkit-scrollbar-thumb:hover,
+.market-predict__stats-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 1200px) {
+  .market-predict__container {
+    padding: 15px;
+    background: #121621;
+  }
+
+  .market-predict__chart-container {
+    gap: 15px;
+  }
+
+  .market-predict__notification {
+    width: 320px;
+  }
+}
+
+@media (max-width: 992px) {
+  .market-predict__chart-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .market-predict__chart-wrapper {
+    width: 100%;
+    height: 300px;
+  }
+
+  .market-predict__probability-panel,
+  .market-predict__stats-panel,
+  .market-predict__coin-details-panel {
+    width: 100%;
+    height: auto;
+    min-height: 300px;
+    max-height: 400px;
+    border-left: none;
+    border-top: 1px solid #2a3042;
+    margin-top: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  .market-predict__control-button-group {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .market-predict__control-button {
+    min-width: 45%;
+    margin-bottom: 10px;
+  }
+
+  .market-predict__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .market-predict__coin-price-info {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .market-predict__chart-controls {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .market-predict__timeframe-selector,
+  .market-predict__control-button-group {
+    width: 100%;
+  }
+
+  .market-predict__notification {
+    width: 90%;
+    max-width: 350px;
+    right: 50%;
+    transform: translateX(50%);
+  }
+
+  @keyframes market-predict-slide-in-right {
+    from {
+      transform: translateX(50%) translateY(-100px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(50%) translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .market-predict__container {
+    padding: 10px;
+    background: #121621;
+  }
+
+  .market-predict__coin-title h1 {
+    font-size: 1.2rem;
+  }
+
+  .market-predict__current-price {
+    font-size: 1.5rem;
+  }
+
+  .market-predict__chart-wrapper {
+    height: 250px;
+    padding: 10px;
+  }
+
+  .market-predict__probability-panel,
+  .market-predict__stats-panel,
+  .market-predict__coin-details-panel {
+    padding: 10px;
+  }
+
+  .market-predict__stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .market-predict__timeframe-button {
+    width: 50px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .market-predict__notification {
+    width: 95%;
+    max-width: none;
+  }
+
+  .market-predict__notification-content {
+    padding: 12px;
+  }
+
+  .market-predict__notification-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .market-predict__notification-text h4 {
+    font-size: 15px;
+  }
+
+  .market-predict__notification-text p {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .market-predict__control-button {
+    min-width: 100%;
+  }
+
+  .market-predict__coin-identity {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .market-predict__coin-logo {
+    width: 40px;
+    height: 40px;
+  }
+}
+
