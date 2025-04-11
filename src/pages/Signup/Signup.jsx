@@ -268,13 +268,7 @@ const Signup = () => {
       <div className="auth-card">
         <div className="auth-header">
           <div className="logo-container">
-            <div className="logo">
-              <div className="logo-circle"></div>
-              <div className="logo-line"></div>
-              <div className="logo-dot dot-1"></div>
-              <div className="logo-dot dot-2"></div>
-              <div className="logo-dot dot-3"></div>
-            </div>
+            <img src="/logoooo.png" alt="Logo" className="logo-image" />
           </div>
         </div>
         <div className="auth-header">
@@ -331,7 +325,7 @@ const Signup = () => {
           <button type="submit" className="submit-button" disabled={loading}>
             {loading ? "Please wait..." : isLogin ? "Login" : "Create Account"}
           </button>
-      
+
           <div className="auth-switch">
             <span>{isLogin ? "Don't have an account?" : "Already have an account?"}</span>
             <button className="switch-button" onClick={toggleAuthMode} type="button">

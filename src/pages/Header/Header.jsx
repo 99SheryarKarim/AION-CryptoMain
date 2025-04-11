@@ -104,12 +104,7 @@ function Header() {
                     Dashboard
                   </Link>
                 </li>
-                <li className="nav-item user-info">
-                  <span className="username">{username || "User"}</span>
-                  <button className="logout-btn" onClick={handleLogout}>
-                    Logout
-                  </button>
-                </li>
+                
               </>
             ) : (
               <li className="nav-item">
@@ -119,16 +114,7 @@ function Header() {
               </li>
             )}
 
-            {adminToken && (
-              <li className="nav-item admin-section">
-                <Link to="/admin/dashboard" onClick={closeMenu} className="admin-link">
-                  Admin Panel
-                </Link>
-                <button className="admin-logout-btn" onClick={handleAdminLogout}>
-                  Admin Logout
-                </button>
-              </li>
-            )}
+          
           </ul>
 
           <button className="contact-btn" onClick={handleContactClick}>

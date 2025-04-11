@@ -95,15 +95,8 @@ const AdminLogin = () => {
 
       <div className="admin-card">
         <div className="admin-header">
-          <div className="logo-container">
-            <div className="admin-logo">
-              <div className="logo-circle"></div>
-              <div className="logo-line"></div>
-              <div className="logo-dot dot-1"></div>
-              <div className="logo-dot dot-2"></div>
-              <div className="logo-dot dot-3"></div>
-              <div className="admin-badge">ADMIN</div>
-            </div>
+        <div className="logo-container">
+            <img src="/logoooo.png" alt="Logo" className="logo-image" />
           </div>
         </div>
         <div className="admin-header">

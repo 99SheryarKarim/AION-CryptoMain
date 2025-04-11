@@ -230,8 +230,8 @@ const AdminDashboard = () => {
       <div className="admin-sidebar">
         <div className="admin-sidebar-header">
           <div className="admin-logo-small">
-            <div className="logo-circle"></div>
-            <div className="logo-line"></div>
+          
+           
           </div>
           <h3>Admin Panel</h3>
         </div>
