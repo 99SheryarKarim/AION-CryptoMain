@@ -32,6 +32,8 @@ const AdminLogin = () => {
   // Check admin token in localStorage on mount
   useEffect(() => {
     if (adminToken) {
+      // Store the admin token in localStorage for other components to access
+      localStorage.setItem("adminToken", adminToken)
       navigate("/admin/dashboard")
     }
   }, [adminToken, navigate])
@@ -58,12 +60,17 @@ const AdminLogin = () => {
 
     setLoading(true)
     try {
-      await dispatch(
+      const result = await dispatch(
         adminLoginAction({
           username: formData.username,
           password: formData.password,
         }),
       ).unwrap()
+
+      // Explicitly set the admin token in localStorage
+      if (result && result.token) {
+        localStorage.setItem("adminToken", result.token)
+      }
 
       // Navigation will happen automatically due to the useEffect watching adminToken
     } catch (error) {
@@ -95,7 +102,7 @@ const AdminLogin = () => {
 
       <div className="admin-card">
         <div className="admin-header">
-        <div className="logo-container">
+          <div className="logo-container">
             <img src="/logoooo.png" alt="Logo" className="logo-image" />
           </div>
         </div>
