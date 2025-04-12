@@ -99,7 +99,7 @@ const Discover = () => {
     {
       id: 9,
       category: categories.AI,
-      title: "AI-Powered Trading Algorithms Outperform Traditional Strategies",
+      title: "AI-Powered Trading Algorithms Outperform Traditional Strategiess",
       summary: "Machine learning models show 23% better performance in volatile market conditions.",
       date: currentDate,
       // readTime: "4 min read",
