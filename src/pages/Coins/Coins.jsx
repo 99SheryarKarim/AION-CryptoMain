@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { useNavigate } from "react-router-dom"
-import "./Coins.css"
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import "./Coins.css";
 
 // Hardcoded tech stocks data
 const TECH_STOCKS = [
@@ -247,7 +247,7 @@ const TECH_STOCKS = [
     price_change_percentage_24h: 1.23,
     sector: "tech",
   },
-]
+];
 
 // Hardcoded oil and gas stocks data
 const OIL_GAS_STOCKS = [
@@ -491,159 +491,172 @@ const OIL_GAS_STOCKS = [
     price_change_percentage_24h: -0.89,
     sector: "oilgas",
   },
-]
+];
 
 const Coins = () => {
-  const [cryptoData, setCryptoData] = useState([])
-  const [stocksData, setStocksData] = useState({ tech: TECH_STOCKS, oilGas: OIL_GAS_STOCKS })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [sortConfig, setSortConfig] = useState({ key: "market_cap", direction: "descending" })
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(20)
-  const [activeFilter, setActiveFilter] = useState("all")
+  const [cryptoData, setCryptoData] = useState([]);
+  const [stocksData, setStocksData] = useState({
+    tech: TECH_STOCKS,
+    oilGas: OIL_GAS_STOCKS,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortConfig, setSortConfig] = useState({
+    key: "market_cap",
+    direction: "descending",
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
+  const [activeFilter, setActiveFilter] = useState("all");
   const [activeMarket, setActiveMarket] = useState(() => {
     // Get saved market from localStorage or default to "crypto"
-    return localStorage.getItem("activeMarket") || "crypto"
-  })
+    return localStorage.getItem("activeMarket") || "crypto";
+  });
 
   // Add subscription status state
   const [isSubscribed, setIsSubscribed] = useState(() => {
     // Check if user has subscribed from localStorage
-    return localStorage.getItem("isSubscribed") === "true"
-  })
+    return localStorage.getItem("isSubscribed") === "true";
+  });
 
   // Add notification state
-  const [showNotification, setShowNotification] = useState(false)
-  const [selectedItem, setSelectedItem] = useState(null)
+  const [showNotification, setShowNotification] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   // Fetch cryptocurrency data
   useEffect(() => {
     const fetchCryptoData = async (retryCount = 0) => {
       try {
         // First check if we have cached data and it's not too old (less than 5 minutes old)
-        const cachedData = localStorage.getItem("cryptoData")
-        const cachedTimestamp = localStorage.getItem("cryptoDataTimestamp")
+        const cachedData = localStorage.getItem("cryptoData");
+        const cachedTimestamp = localStorage.getItem("cryptoDataTimestamp");
 
         // If we have cached data and it's recent (less than 5 minutes old)
-        if (cachedData && cachedTimestamp && Date.now() - Number.parseInt(cachedTimestamp) < 5 * 60 * 1000) {
-          setCryptoData(JSON.parse(cachedData))
-          setLoading(false)
-          setError(null)
-          return
+        if (
+          cachedData &&
+          cachedTimestamp &&
+          Date.now() - Number.parseInt(cachedTimestamp) < 5 * 60 * 1000
+        ) {
+          setCryptoData(JSON.parse(cachedData));
+          setLoading(false);
+          setError(null);
+          return;
         }
 
         // If no valid cache, show loading and fetch new data
-        setLoading(true)
+        setLoading(true);
         const response = await fetch(
-          "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false",
-        )
+          "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false"
+        );
 
         if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`)
+          throw new Error(`HTTP error! Status: ${response.status}`);
         }
 
-        const data = await response.json()
+        const data = await response.json();
 
         // Check if we got valid data
         if (!Array.isArray(data) || data.length === 0) {
-          throw new Error("Invalid data format received from API")
+          throw new Error("Invalid data format received from API");
         }
 
         // Cache the data
-        localStorage.setItem("cryptoData", JSON.stringify(data))
-        localStorage.setItem("cryptoDataTimestamp", Date.now().toString())
+        localStorage.setItem("cryptoData", JSON.stringify(data));
+        localStorage.setItem("cryptoDataTimestamp", Date.now().toString());
 
-        setCryptoData(data)
-        setLoading(false)
-        setError(null)
+        setCryptoData(data);
+        setLoading(false);
+        setError(null);
       } catch (err) {
-        console.error("Error fetching data:", err)
+        console.error("Error fetching data:", err);
 
         // Check if we have any cached data to fall back to
-        const cachedData = localStorage.getItem("cryptoData")
+        const cachedData = localStorage.getItem("cryptoData");
         if (cachedData) {
-          setCryptoData(JSON.parse(cachedData))
-          setLoading(false)
-          setError(null) // Don't show error if we have cached data
-          return
+          setCryptoData(JSON.parse(cachedData));
+          setLoading(false);
+          setError(null); // Don't show error if we have cached data
+          return;
         }
 
         // Implement retry logic (max 3 retries)
         if (retryCount < 3) {
-          console.log(`Retrying... Attempt ${retryCount + 1}/3`)
+          console.log(`Retrying... Attempt ${retryCount + 1}/3`);
           // Wait longer between each retry
-          setTimeout(() => fetchCryptoData(retryCount + 1), 1000 * (retryCount + 1))
-          return
+          setTimeout(
+            () => fetchCryptoData(retryCount + 1),
+            1000 * (retryCount + 1)
+          );
+          return;
         }
 
-        setError("Failed to load cryptocurrency data. Please try again later.")
-        setLoading(false)
+        setError("Failed to load cryptocurrency data. Please try again later.");
+        setLoading(false);
       }
-    }
+    };
 
-    fetchCryptoData()
-  }, [])
+    fetchCryptoData();
+  }, []);
 
   // Save active market to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("activeMarket", activeMarket)
-  }, [activeMarket])
+    localStorage.setItem("activeMarket", activeMarket);
+  }, [activeMarket]);
 
   // Save subscription status to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("isSubscribed", isSubscribed.toString())
-  }, [isSubscribed])
+    localStorage.setItem("isSubscribed", isSubscribed.toString());
+  }, [isSubscribed]);
 
   // Handle search input change
   const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value)
-    setCurrentPage(1) // Reset to first page on new search
-  }
+    setSearchTerm(e.target.value);
+    setCurrentPage(1); // Reset to first page on new search
+  };
 
   // Handle sorting
   const requestSort = (key) => {
-    let direction = "ascending"
+    let direction = "ascending";
     if (sortConfig.key === key && sortConfig.direction === "ascending") {
-      direction = "descending"
+      direction = "descending";
     }
-    setSortConfig({ key, direction })
-  }
+    setSortConfig({ key, direction });
+  };
 
   // Handle filtering
   const handleFilterChange = (filter) => {
-    setActiveFilter(filter)
-    setCurrentPage(1) // Reset to first page on new filter
-  }
+    setActiveFilter(filter);
+    setCurrentPage(1); // Reset to first page on new filter
+  };
 
   // Handle market type selection
   const handleMarketChange = (market) => {
-    setActiveMarket(market)
-    setCurrentPage(1) // Reset to first page when changing markets
-  }
+    setActiveMarket(market);
+    setCurrentPage(1); // Reset to first page when changing markets
+  };
 
   // Get the current data based on active market
   const getCurrentMarketData = () => {
     switch (activeMarket) {
       case "tech-stocks":
-        return stocksData.tech
+        return stocksData.tech;
       case "oil-gas-stocks":
-        return stocksData.oilGas
+        return stocksData.oilGas;
       default:
-        return cryptoData
+        return cryptoData;
     }
-  }
+  };
 
   // Apply sorting and filtering
   const getSortedAndFilteredData = () => {
-    let filteredData = [...getCurrentMarketData()]
+    let filteredData = [...getCurrentMarketData()];
 
     // If data is empty, return empty array
     if (!filteredData || filteredData.length === 0) {
-      return []
+      return [];
     }
 
     // Apply search filter
@@ -651,96 +664,103 @@ const Coins = () => {
       filteredData = filteredData.filter(
         (item) =>
           item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.symbol.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
+          item.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
 
     // Apply category filter
     if (activeFilter === "gainers") {
-      filteredData = filteredData.filter((item) => item.price_change_percentage_24h > 0)
+      filteredData = filteredData.filter(
+        (item) => item.price_change_percentage_24h > 0
+      );
     } else if (activeFilter === "losers") {
-      filteredData = filteredData.filter((item) => item.price_change_percentage_24h < 0)
+      filteredData = filteredData.filter(
+        (item) => item.price_change_percentage_24h < 0
+      );
     }
 
     // Apply sorting
     if (sortConfig.key) {
       filteredData.sort((a, b) => {
         if (a[sortConfig.key] < b[sortConfig.key]) {
-          return sortConfig.direction === "ascending" ? -1 : 1
+          return sortConfig.direction === "ascending" ? -1 : 1;
         }
         if (a[sortConfig.key] > b[sortConfig.key]) {
-          return sortConfig.direction === "ascending" ? 1 : -1
+          return sortConfig.direction === "ascending" ? 1 : -1;
         }
-        return 0
-      })
+        return 0;
+      });
     }
 
-    return filteredData
-  }
+    return filteredData;
+  };
 
   // Get current items for pagination
-  const sortedAndFilteredData = getSortedAndFilteredData()
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = sortedAndFilteredData.slice(indexOfFirstItem, indexOfLastItem)
-  const totalPages = Math.ceil(sortedAndFilteredData.length / itemsPerPage)
+  const sortedAndFilteredData = getSortedAndFilteredData();
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = sortedAndFilteredData.slice(
+    indexOfFirstItem,
+    indexOfLastItem
+  );
+  const totalPages = Math.ceil(sortedAndFilteredData.length / itemsPerPage);
 
   // Handle pagination
-  const paginate = (pageNumber) => setCurrentPage(pageNumber)
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   // Check if item is Bitcoin or user is subscribed
   const isItemAccessible = (item) => {
     // If user is subscribed, all items are accessible
-    if (isSubscribed) return true
+    if (isSubscribed) return true;
 
     // If it's Bitcoin, it's accessible
-    if (item.symbol && item.symbol.toLowerCase() === "btc") return true
+    if (item.symbol && item.symbol.toLowerCase() === "btc") return true;
 
     // Otherwise, it's locked
-    return false
-  }
+    return false;
+  };
 
   // Handle item click to navigate to prediction page or show notification
   const handleItemClick = (item) => {
     if (isItemAccessible(item)) {
       // Store the selected item in localStorage to access it on the prediction page
-      localStorage.setItem("selectedMarketItem", JSON.stringify(item))
+      localStorage.setItem("selectedMarketItem", JSON.stringify(item));
       // Navigate to the prediction page
-      navigate("/predict")
+      navigate("/predict");
     } else {
       // Show notification for subscription
-      setSelectedItem(item)
-      setShowNotification(true)
+      setSelectedItem(item);
+      setShowNotification(true);
     }
-  }
+  };
 
   // Handle notification OK button click
   const handleNotificationOk = () => {
     // Close the notification
-    setShowNotification(false)
+    setShowNotification(false);
     // Navigate to the GoPro page
-    navigate("/gopro")
-  }
+    navigate("/gopro");
+  };
 
   // Render sort indicator
   const getSortIndicator = (key) => {
     if (sortConfig.key === key) {
-      return sortConfig.direction === "ascending" ? " ↑" : " ↓"
+      return sortConfig.direction === "ascending" ? " ↑" : " ↓";
     }
-    return ""
-  }
+    return "";
+  };
 
   // Get the title based on the active market
   const getMarketTitle = () => {
     switch (activeMarket) {
       case "tech-stocks":
-        return "Top 20 Technology Stocks"
+        return "Top 20 Technology Stocks";
       case "oil-gas-stocks":
-        return "Top 20 Oil & Gas Stocks"
+        return "Top 20 Oil & Gas Stocks";
       default:
-        return "Cryptocurrency Market"
+        return "Cryptocurrency Market";
     }
-  }
+  };
 
   return (
     <div className="coins-section">
@@ -755,19 +775,25 @@ const Coins = () => {
 
       <div className="market-selector">
         <button
-          className={`market-button ${activeMarket === "crypto" ? "active" : ""}`}
+          className={`market-button ${
+            activeMarket === "crypto" ? "active" : ""
+          }`}
           onClick={() => handleMarketChange("crypto")}
         >
           Cryptocurrencies
         </button>
         <button
-          className={`market-button ${activeMarket === "tech-stocks" ? "active" : ""}`}
+          className={`market-button ${
+            activeMarket === "tech-stocks" ? "active" : ""
+          }`}
           onClick={() => handleMarketChange("tech-stocks")}
         >
           Tech Stocks
         </button>
         <button
-          className={`market-button ${activeMarket === "oil-gas-stocks" ? "active" : ""}`}
+          className={`market-button ${
+            activeMarket === "oil-gas-stocks" ? "active" : ""
+          }`}
           onClick={() => handleMarketChange("oil-gas-stocks")}
         >
           Oil & Gas Stocks
@@ -788,19 +814,25 @@ const Coins = () => {
 
         <div className="filter-buttons">
           <button
-            className={`filter-button ${activeFilter === "all" ? "active" : ""}`}
+            className={`filter-button ${
+              activeFilter === "all" ? "active" : ""
+            }`}
             onClick={() => handleFilterChange("all")}
           >
             All
           </button>
           <button
-            className={`filter-button ${activeFilter === "gainers" ? "active" : ""}`}
+            className={`filter-button ${
+              activeFilter === "gainers" ? "active" : ""
+            }`}
             onClick={() => handleFilterChange("gainers")}
           >
             Gainers
           </button>
           <button
-            className={`filter-button ${activeFilter === "losers" ? "active" : ""}`}
+            className={`filter-button ${
+              activeFilter === "losers" ? "active" : ""
+            }`}
             onClick={() => handleFilterChange("losers")}
           >
             Losers
@@ -832,11 +864,14 @@ const Coins = () => {
             <motion.button
               className="retry-button"
               onClick={() => {
-                setLoading(true)
-                setError(null)
+                setLoading(true);
+                setError(null);
                 // Force a fresh fetch by setting a timestamp older than 5 minutes
-                localStorage.setItem("cryptoDataTimestamp", (Date.now() - 6 * 60 * 1000).toString())
-                window.location.reload()
+                localStorage.setItem(
+                  "cryptoDataTimestamp",
+                  (Date.now() - 6 * 60 * 1000).toString()
+                );
+                window.location.reload();
               }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -856,21 +891,33 @@ const Coins = () => {
             <table className="coins-table">
               <thead>
                 <tr>
-                  <th onClick={() => requestSort("market_cap_rank")}># {getSortIndicator("market_cap_rank")}</th>
-                  <th onClick={() => requestSort("name")}>Name {getSortIndicator("name")}</th>
-                  <th onClick={() => requestSort("current_price")}>Price {getSortIndicator("current_price")}</th>
-                  <th onClick={() => requestSort("price_change_percentage_24h")}>
+                  <th onClick={() => requestSort("market_cap_rank")}>
+                    # {getSortIndicator("market_cap_rank")}
+                  </th>
+                  <th onClick={() => requestSort("name")}>
+                    Name {getSortIndicator("name")}
+                  </th>
+                  <th onClick={() => requestSort("current_price")}>
+                    Price {getSortIndicator("current_price")}
+                  </th>
+                  <th
+                    onClick={() => requestSort("price_change_percentage_24h")}
+                  >
                     24h Change {getSortIndicator("price_change_percentage_24h")}
                   </th>
-                  <th onClick={() => requestSort("market_cap")}>Market Cap {getSortIndicator("market_cap")}</th>
-                  <th onClick={() => requestSort("total_volume")}>Volume (24h) {getSortIndicator("total_volume")}</th>
+                  <th onClick={() => requestSort("market_cap")}>
+                    Market Cap {getSortIndicator("market_cap")}
+                  </th>
+                  <th onClick={() => requestSort("total_volume")}>
+                    Volume (24h) {getSortIndicator("total_volume")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {currentItems.length > 0 ? (
                   currentItems.map((item) => {
-                    const isPositive = item.price_change_percentage_24h >= 0
-                    const isAccessible = isItemAccessible(item)
+                    const isPositive = item.price_change_percentage_24h >= 0;
+                    const isAccessible = isItemAccessible(item);
 
                     return (
                       <motion.tr
@@ -878,35 +925,64 @@ const Coins = () => {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3 }}
-                        whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.05)" }}
+                        whileHover={{
+                          backgroundColor: "rgba(255, 255, 255, 0.05)",
+                        }}
                         onClick={() => handleItemClick(item)}
-                        className={`clickable-row ${!isAccessible ? "locked-item" : ""}`}
+                        className={`clickable-row ${
+                          !isAccessible ? "locked-item" : ""
+                        }`}
                         data-sector={item.sector || "crypto"}
                       >
                         <td>{item.market_cap_rank}</td>
                         <td className="coin-info">
                           <img
-                            src={item.image || `/placeholder.svg?height=30&width=30&text=${item.symbol}`}
+                            src={
+                              item.image ||
+                              `/placeholder.svg?height=30&width=30&text=${item.symbol}`
+                            }
                             alt={item.name || item.symbol}
                             className="coin-image"
                           />
                           <div className="coin-details">
                             <span className="coin-name">
                               {item.name}
-                              {!isAccessible && <span className="lock-icon">🔒</span>}
+                              {!isAccessible && (
+                                <span className="lock-icon">🔒</span>
+                              )}
                             </span>
-                            <span className="coin-symbol">{item.symbol.toUpperCase()}</span>
+                            <span className="coin-symbol">
+                              {item.symbol.toUpperCase()}
+                            </span>
                           </div>
                         </td>
-                        <td>${item.current_price.toLocaleString()}</td>
-                        <td className={isPositive ? "positive" : "negative"}>
-                          <span className="change-indicator">{isPositive ? "↑" : "↓"}</span>
-                          {Math.abs(item.price_change_percentage_24h).toFixed(2)}%
+                        <td>{item.current_price.toLocaleString()}</td>
+                        <td
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            color: isPositive ? "#4caf50" : "#f44336",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: "bold",
+                              fontSize: "14px",
+                              marginRight: "4px",
+                            }}
+                          >
+                            {isPositive ? "↑" : "↓"}
+                          </span>
+                          {Math.abs(item.price_change_percentage_24h).toFixed(
+                            2
+                          )}
+                          %
                         </td>
+
                         <td>${item.market_cap.toLocaleString()}</td>
                         <td>${item.total_volume.toLocaleString()}</td>
                       </motion.tr>
-                    )
+                    );
                   })
                 ) : (
                   <tr>
@@ -934,18 +1010,27 @@ const Coins = () => {
                       (number) =>
                         number === 1 ||
                         number === totalPages ||
-                        (number >= currentPage - 1 && number <= currentPage + 1),
+                        (number >= currentPage - 1 && number <= currentPage + 1)
                     )
                     .map((number) => {
                       // Add ellipsis
                       if (
                         number > 1 &&
-                        Array.from({ length: totalPages }, (_, i) => i + 1).filter(
-                          (n) => n === 1 || n === totalPages || (n >= currentPage - 1 && n <= currentPage + 1),
+                        Array.from(
+                          { length: totalPages },
+                          (_, i) => i + 1
+                        ).filter(
+                          (n) =>
+                            n === 1 ||
+                            n === totalPages ||
+                            (n >= currentPage - 1 && n <= currentPage + 1)
                         )[
                           Array.from({ length: totalPages }, (_, i) => i + 1)
                             .filter(
-                              (n) => n === 1 || n === totalPages || (n >= currentPage - 1 && n <= currentPage + 1),
+                              (n) =>
+                                n === 1 ||
+                                n === totalPages ||
+                                (n >= currentPage - 1 && n <= currentPage + 1)
                             )
                             .indexOf(number) - 1
                         ] <
@@ -955,18 +1040,20 @@ const Coins = () => {
                           <span key={`ellipsis-${number}`} className="ellipsis">
                             ...
                           </span>
-                        )
+                        );
                       }
 
                       return (
                         <button
                           key={number}
                           onClick={() => paginate(number)}
-                          className={`pagination-number ${currentPage === number ? "active" : ""}`}
+                          className={`pagination-number ${
+                            currentPage === number ? "active" : ""
+                          }`}
                         >
                           {number}
                         </button>
-                      )
+                      );
                     })}
                 </div>
                 <button
@@ -1006,28 +1093,37 @@ const Coins = () => {
                   <span className="premium-crown">👑</span>
                   <span className="premium-badge-text">PREMIUM</span>
                 </div>
-                <button className="premium-close" onClick={() => setShowNotification(false)}>
+                <button
+                  className="premium-close"
+                  onClick={() => setShowNotification(false)}
+                >
                   ×
                 </button>
               </div>
 
               <div className="premium-asset">
                 <img
-                  src={selectedItem?.image || `/placeholder.svg?height=60&width=60&text=${selectedItem?.symbol}`}
+                  src={
+                    selectedItem?.image ||
+                    `/placeholder.svg?height=60&width=60&text=${selectedItem?.symbol}`
+                  }
                   alt={selectedItem?.name || "Asset"}
                   className="premium-asset-image"
                 />
                 <div className="premium-asset-info">
                   <h3>{selectedItem?.name || "This asset"}</h3>
-                  <p className="premium-asset-symbol">{selectedItem?.symbol?.toUpperCase() || ""}</p>
+                  <p className="premium-asset-symbol">
+                    {selectedItem?.symbol?.toUpperCase() || ""}
+                  </p>
                 </div>
               </div>
 
               <div className="premium-message">
                 <h2>Unlock Premium Predictions</h2>
                 <p>
-                  Currently, only Bitcoin is available in the free plan. Upgrade to Premium to access predictions for
-                  all cryptocurrencies and stocks.
+                  Currently, only Bitcoin is available in the free plan. Upgrade
+                  to Premium to access predictions for all cryptocurrencies and
+                  stocks.
                 </p>
               </div>
 
@@ -1056,11 +1152,17 @@ const Coins = () => {
               </div>
 
               <div className="premium-actions">
-                <button className="premium-upgrade-button" onClick={handleNotificationOk}>
+                <button
+                  className="premium-upgrade-button"
+                  onClick={handleNotificationOk}
+                >
                   <span className="premium-button-text">Upgrade Now</span>
                   <span className="premium-button-icon">→</span>
                 </button>
-                <button className="premium-later-button" onClick={() => setShowNotification(false)}>
+                <button
+                  className="premium-later-button"
+                  onClick={() => setShowNotification(false)}
+                >
                   Maybe Later
                 </button>
               </div>
@@ -1069,8 +1171,7 @@ const Coins = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default Coins
-
+export default Coins;
