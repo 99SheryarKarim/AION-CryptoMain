@@ -1,5 +1,6 @@
 "use client"
 import { motion } from "framer-motion"
+import { Link } from "react-router-dom"
 import "./Hero.css"
 import hero from "../../../assets/hero.webp"
 
@@ -18,40 +19,41 @@ const Hero = () => {
       <section className="hero">
         <div className="hero-left">
           <motion.h1 variants={textVariants} initial="hidden" animate="visible" custom={0}>
-          Welcome to AION AI - The Future of Predictive Blockchain Analytics
+            Welcome to AION AI - The Future of Predictive Blockchain Analytics
           </motion.h1>
 
           <motion.p variants={textVariants} initial="hidden" animate="visible" custom={1}>
-           
-AION AI is a cutting-edge prediction model bot designed to revolutionize blockchain interoperability and scalability. Our advanced AI-driven platform empowers businesses and developers with accurate forecasting, explainable AI, and seamless integration capabilities.
+            AION AI is a cutting-edge prediction model bot designed to revolutionize blockchain interoperability and
+            scalability. Our advanced AI-driven platform empowers businesses and developers with accurate forecasting,
+            explainable AI, and seamless integration capabilities.
           </motion.p>
 
           <div className="hero-buttons">
-            <motion.button
-              className="pricing-btn"
-              variants={textVariants}
-              initial="hidden"
-              animate="visible"
-              custom={2}
-              whileHover={{ scale: 1.05, backgroundColor: "#ff7b00" }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 200 }}
-            >
-              Get Started
-            </motion.button>
+            <motion.div variants={textVariants} initial="hidden" animate="visible" custom={2}>
+              <Link to="/gopro">
+                <motion.button
+                  className="pricing-btn"
+                  whileHover={{ scale: 1.05, backgroundColor: "#ff7b00" }}
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                >
+                  Get Started
+                </motion.button>
+              </Link>
+            </motion.div>
 
-            <motion.button
-              className="download-btn"
-              variants={textVariants}
-              initial="hidden"
-              animate="visible"
-              custom={3}
-              whileHover={{ scale: 1.05, backgroundColor: "#008aff" }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 200 }}
-            >
-              Learn more
-            </motion.button>
+            <motion.div variants={textVariants} initial="hidden" animate="visible" custom={3}>
+              <Link to="/services">
+                <motion.button
+                  className="download-btn"
+                  whileHover={{ scale: 1.05, backgroundColor: "#008aff" }}
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                >
+                  Learn more
+                </motion.button>
+              </Link>
+            </motion.div>
           </div>
         </div>
         <div className="hero-right">
@@ -70,4 +72,3 @@ AION AI is a cutting-edge prediction model bot designed to revolutionize blockch
 }
 
 export default Hero
-
