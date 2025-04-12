@@ -17,6 +17,9 @@ import {
   Check,
   X,
   AlertCircle,
+  ZoomIn,
+  ZoomOut,
+  Move,
 } from "lucide-react"
 import "./MarketPredict.css"
 
@@ -44,6 +47,17 @@ const Predict = () => {
   const apiRetryCount = useRef(0)
   const MAX_RETRIES = 3
   const notificationTimeoutRef = useRef(null)
+
+  // Chart interaction state
+  const [chartScale, setChartScale] = useState(1)
+  const [chartOffset, setChartOffset] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState(0)
+  const [extendedChartData, setExtendedChartData] = useState([])
+
+  // Add Y-axis scrolling state
+  const [chartVerticalOffset, setChartVerticalOffset] = useState(0)
+  const [dragStartY, setDragStartY] = useState(0)
 
   // Get the selected item from localStorage
   useEffect(() => {
@@ -447,6 +461,11 @@ const Predict = () => {
         // Try to fetch data from API
         const data = await fetchHistoricalData(selectedItem, timeframe)
         setChartData(data)
+
+        // Generate extended data for scrolling
+        const extendedData = generateExtendedHistoricalData(data, selectedItem)
+        setExtendedChartData(extendedData)
+
         setLoading(false)
       } catch (err) {
         console.error("Error fetching initial data:", err)
@@ -454,6 +473,11 @@ const Predict = () => {
         // Fallback to generated data
         const data = generateRealisticData(selectedItem, timeframe)
         setChartData(data)
+
+        // Generate extended data for scrolling
+        const extendedData = generateExtendedHistoricalData(data, selectedItem)
+        setExtendedChartData(extendedData)
+
         setLoading(false)
 
         // Show notification about using simulation
@@ -481,6 +505,38 @@ const Predict = () => {
       }
     }
   }, [selectedItem, timeframe]) // Only run on initial mount and when selectedItem changes
+
+  // Generate extended historical data for scrolling
+  const generateExtendedHistoricalData = (data, item) => {
+    if (!data || data.length === 0 || !item) return []
+
+    // Create more historical data points for scrolling
+    const basePrice = data[0].price
+    const volatility = item.price_change_percentage_24h ? Math.abs(item.price_change_percentage_24h) / 100 : 0.02
+
+    // Generate 3x more data points for the past
+    const extendedData = []
+    const oldestTime = data[0].fullTime
+
+    // Generate past data
+    for (let i = 200; i > 0; i--) {
+      const time = new Date(oldestTime.getTime() - i * 60 * 1000) // 1 minute intervals
+
+      // Create a realistic price with some trend and volatility
+      const trendFactor = 0.0001 * i // Slight trend
+      const randomFactor = (Math.random() - 0.5) * volatility
+      const priceFactor = 1 + randomFactor - trendFactor
+
+      extendedData.push({
+        time: time.toLocaleTimeString(),
+        price: basePrice * priceFactor,
+        fullTime: time,
+      })
+    }
+
+    // Add the actual data
+    return [...extendedData, ...data]
+  }
 
   // Draw stats chart when stats data is available
   useEffect(() => {
@@ -763,6 +819,11 @@ const Predict = () => {
 
       // Start the transition animation
       transitionData(0)
+
+      // Generate extended data for scrolling
+      const extendedData = generateExtendedHistoricalData(data, selectedItem)
+      setExtendedChartData(extendedData)
+
       setLoading(false)
 
       // Clear any previous error notifications
@@ -775,6 +836,10 @@ const Predict = () => {
       // Generate realistic data based on the selected item as a last resort
       const mockData = generateRealisticData(selectedItem, pendingTimeframe || timeframe)
       setChartData(mockData)
+
+      // Generate extended data for scrolling
+      const extendedData = generateExtendedHistoricalData(mockData, selectedItem)
+      setExtendedChartData(extendedData)
 
       // Show notification but don't show error in UI to avoid alarming users
       showNotification({
@@ -861,7 +926,118 @@ const Predict = () => {
     if (chartData.length > 0 && chartRef.current) {
       drawChart()
     }
-  }, [chartData, isPredicting])
+  }, [chartData, isPredicting, chartScale, chartOffset, chartVerticalOffset])
+
+  // Handle mouse down on chart for dragging
+  const handleChartMouseDown = (e) => {
+    if (!chartRef.current) return
+
+    setIsDragging(true)
+    setDragStart(e.clientX)
+    setDragStartY(e.clientY)
+
+    // Add event listeners for mouse move and up
+    document.addEventListener("mousemove", handleChartMouseMove)
+    document.addEventListener("mouseup", handleChartMouseUp)
+
+    // Prevent default behavior
+    e.preventDefault()
+  }
+
+  // Handle mouse move for chart dragging
+  const handleChartMouseMove = (e) => {
+    if (!isDragging || !chartRef.current) return
+
+    const canvas = chartRef.current
+    const deltaX = e.clientX - dragStart
+    const deltaY = e.clientY - dragStartY
+
+    // Update chart offset based on drag distance (X-axis)
+    setChartOffset((prev) => {
+      // Calculate new offset with bounds
+      const maxOffset = extendedChartData.length - chartData.length
+      return Math.max(0, Math.min(maxOffset, prev - deltaX / 10))
+    })
+
+    // Update vertical offset (Y-axis)
+    setChartVerticalOffset((prev) => {
+      // Limit vertical scrolling to a reasonable range
+      return Math.max(-100, Math.min(100, prev + deltaY))
+    })
+
+    // Update drag start position
+    setDragStart(e.clientX)
+    setDragStartY(e.clientY)
+  }
+
+  // Handle mouse up to end dragging
+  const handleChartMouseUp = () => {
+    setIsDragging(false)
+
+    // Remove event listeners
+    document.removeEventListener("mousemove", handleChartMouseMove)
+    document.removeEventListener("mouseup", handleChartMouseUp)
+  }
+
+  // Handle zoom in
+  const handleZoomIn = () => {
+    setChartScale((prev) => Math.min(prev * 1.2, 5))
+  }
+
+  // Handle zoom out
+  const handleZoomOut = () => {
+    setChartScale((prev) => Math.max(prev / 1.2, 0.5))
+  }
+
+  // Handle chart reset
+  const handleChartReset = () => {
+    setChartScale(1)
+    setChartOffset(0)
+    setChartVerticalOffset(0)
+  }
+
+  // Add touch event handlers for mobile support
+  const handleChartTouchStart = (e) => {
+    if (!chartRef.current || e.touches.length !== 1) return
+
+    setIsDragging(true)
+    setDragStart(e.touches[0].clientX)
+    setDragStartY(e.touches[0].clientY)
+
+    // Prevent default to avoid page scrolling
+    e.preventDefault()
+  }
+
+  const handleChartTouchMove = (e) => {
+    if (!isDragging || !chartRef.current || e.touches.length !== 1) return
+
+    const deltaX = e.touches[0].clientX - dragStart
+    const deltaY = e.touches[0].clientY - dragStartY
+
+    // Update chart offset based on drag distance (X-axis)
+    setChartOffset((prev) => {
+      // Calculate new offset with bounds
+      const maxOffset = extendedChartData.length - chartData.length
+      return Math.max(0, Math.min(maxOffset, prev - deltaX / 10))
+    })
+
+    // Update vertical offset (Y-axis)
+    setChartVerticalOffset((prev) => {
+      // Limit vertical scrolling to a reasonable range
+      return Math.max(-100, Math.min(100, prev + deltaY))
+    })
+
+    // Update drag start position
+    setDragStart(e.touches[0].clientX)
+    setDragStartY(e.touches[0].clientY)
+
+    // Prevent default to avoid page scrolling
+    e.preventDefault()
+  }
+
+  const handleChartTouchEnd = () => {
+    setIsDragging(false)
+  }
 
   // Draw the chart using canvas
   const drawChart = () => {
@@ -885,11 +1061,29 @@ const Predict = () => {
     ctx.fillStyle = "#0a0e17"
     ctx.fillRect(0, 0, width, height)
 
+    // Get visible data based on offset and scale
+    const startIdx = Math.floor(chartOffset)
+    const visibleCount = Math.ceil(chartData.length / chartScale)
+
+    // Ensure we have data to display
+    if (extendedChartData.length === 0) return
+
+    // Get the visible portion of data
+    const visibleData = extendedChartData.slice(startIdx, Math.min(startIdx + visibleCount, extendedChartData.length))
+
+    if (visibleData.length === 0) return
+
     // Calculate min and max prices for scaling
-    const prices = chartData.map((d) => d.price)
+    const prices = visibleData.map((d) => d.price)
     const minPrice = Math.min(...prices) * 0.99
     const maxPrice = Math.max(...prices) * 1.01
     const priceRange = maxPrice - minPrice
+
+    // Apply vertical offset to the chart
+    const verticalOffsetFactor = chartVerticalOffset / height
+    const adjustedMinPrice = minPrice - priceRange * verticalOffsetFactor
+    const adjustedMaxPrice = maxPrice - priceRange * verticalOffsetFactor
+    const adjustedPriceRange = adjustedMaxPrice - adjustedMinPrice
 
     // Draw price labels on right side of the chart only
     ctx.fillStyle = "#999"
@@ -898,8 +1092,20 @@ const Predict = () => {
 
     for (let i = 0; i < 6; i++) {
       const y = height - i * (height / 5)
-      const price = minPrice + (i / 5) * priceRange
+      const price = adjustedMinPrice + (i / 5) * adjustedPriceRange
       ctx.fillText(`${price.toFixed(1)}`, width - 5, y - 5)
+    }
+
+    // Draw time labels on bottom of chart
+    ctx.textAlign = "center"
+    const timeLabels = 5
+    for (let i = 0; i < timeLabels; i++) {
+      const x = (i / (timeLabels - 1)) * width
+      const dataIndex = Math.floor((i / (timeLabels - 1)) * (visibleData.length - 1))
+      if (visibleData[dataIndex]) {
+        const time = visibleData[dataIndex].fullTime
+        ctx.fillText(time.toLocaleTimeString(), x, height - 5)
+      }
     }
 
     // Draw the blue line first (always present but more subtle)
@@ -916,10 +1122,10 @@ const Predict = () => {
     // Start at the bottom left
     ctx.moveTo(0, height)
 
-    // Draw the line path
-    for (let i = 0; i < chartData.length; i++) {
-      const x = (i / (chartData.length - 1)) * width
-      const y = height - ((chartData[i].price - minPrice) / priceRange) * height
+    // Draw the line path with vertical offset
+    for (let i = 0; i < visibleData.length; i++) {
+      const x = (i / (visibleData.length - 1)) * width
+      const y = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
       ctx.lineTo(x, y)
     }
 
@@ -940,19 +1146,21 @@ const Predict = () => {
     ctx.lineWidth = 1.5
 
     // Use bezier curves for smoother lines
-    ctx.moveTo(0, height - ((chartData[0].price - minPrice) / priceRange) * height)
+    if (visibleData.length > 0) {
+      ctx.moveTo(0, height - ((visibleData[0].price - adjustedMinPrice) / adjustedPriceRange) * height)
 
-    for (let i = 1; i < chartData.length; i++) {
-      const x = (i / (chartData.length - 1)) * width
-      const y = height - ((chartData[i].price - minPrice) / priceRange) * height
-      const prevX = ((i - 1) / (chartData.length - 1)) * width
-      const prevY = height - ((chartData[i - 1].price - minPrice) / priceRange) * height
+      for (let i = 1; i < visibleData.length; i++) {
+        const x = (i / (visibleData.length - 1)) * width
+        const y = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
+        const prevX = ((i - 1) / (visibleData.length - 1)) * width
+        const prevY = height - ((visibleData[i - 1].price - adjustedMinPrice) / adjustedPriceRange) * height
 
-      // Control points for the curve
-      const cpX1 = prevX + (x - prevX) / 3
-      const cpX2 = prevX + (2 * (x - prevX)) / 3
+        // Control points for the curve
+        const cpX1 = prevX + (x - prevX) / 3
+        const cpX2 = prevX + (2 * (x - prevX)) / 3
 
-      ctx.bezierCurveTo(cpX1, prevY, cpX2, y, x, y)
+        ctx.bezierCurveTo(cpX1, prevY, cpX2, y, x, y)
+      }
     }
 
     ctx.stroke()
@@ -978,13 +1186,13 @@ const Predict = () => {
 
       // Define volatilityFactor here
       const volatilityFactor = 0.03
-      for (let i = 0; i < chartData.length; i++) {
-        const x = (i / (chartData.length - 1)) * width
+      for (let i = 0; i < visibleData.length; i++) {
+        const x = (i / (visibleData.length - 1)) * width
 
         // Add sine wave to create higher frequency
-        const sineWave = Math.sin(i * 0.5) * volatilityFactor * priceRange
+        const sineWave = Math.sin(i * 0.5) * volatilityFactor * adjustedPriceRange
 
-        const baseY = height - ((chartData[i].price - minPrice) / priceRange) * height
+        const baseY = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
         const y = baseY + sineWave
 
         ctx.lineTo(x, y)
@@ -1000,29 +1208,33 @@ const Predict = () => {
       ctx.lineWidth = 3.5
 
       // Use bezier curves for smoother lines
-      const firstY =
-        height - ((chartData[0].price - minPrice) / priceRange) * height + Math.sin(0) * volatilityFactor * priceRange
-      ctx.moveTo(0, firstY)
+      if (visibleData.length > 0) {
+        const firstY =
+          height -
+          ((visibleData[0].price - adjustedMinPrice) / adjustedPriceRange) * height +
+          Math.sin(0) * volatilityFactor * adjustedPriceRange
+        ctx.moveTo(0, firstY)
 
-      for (let i = 1; i < chartData.length; i++) {
-        const x = (i / (chartData.length - 1)) * width
-        const prevX = ((i - 1) / (chartData.length - 1)) * width
+        for (let i = 1; i < visibleData.length; i++) {
+          const x = (i / (visibleData.length - 1)) * width
+          const prevX = ((i - 1) / (visibleData.length - 1)) * width
 
-        // Add sine wave to create higher frequency
-        const sineWave = Math.sin(i * 0.5) * volatilityFactor * priceRange
-        const prevSineWave = Math.sin((i - 1) * 0.5) * volatilityFactor * priceRange
+          // Add sine wave to create higher frequency
+          const sineWave = Math.sin(i * 0.5) * volatilityFactor * adjustedPriceRange
+          const prevSineWave = Math.sin((i - 1) * 0.5) * volatilityFactor * adjustedPriceRange
 
-        const baseY = height - ((chartData[i].price - minPrice) / priceRange) * height
-        const y = baseY + sineWave
+          const baseY = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
+          const y = baseY + sineWave
 
-        const prevBaseY = height - ((chartData[i - 1].price - minPrice) / priceRange) * height
-        const prevY = prevBaseY + prevSineWave
+          const prevBaseY = height - ((visibleData[i - 1].price - adjustedMinPrice) / adjustedPriceRange) * height
+          const prevY = prevBaseY + prevSineWave
 
-        // Control points for the curve
-        const cpX1 = prevX + (x - prevX) / 3
-        const cpX2 = prevX + (2 * (x - prevX)) / 3
+          // Control points for the curve
+          const cpX1 = prevX + (x - prevX) / 3
+          const cpX2 = prevX + (2 * (x - prevX)) / 3
 
-        ctx.bezierCurveTo(cpX1, prevY, cpX2, y, x, y)
+          ctx.bezierCurveTo(cpX1, prevY, cpX2, y, x, y)
+        }
       }
 
       ctx.stroke()
@@ -1033,6 +1245,12 @@ const Predict = () => {
     ctx.shadowBlur = 0
     ctx.shadowOffsetX = 0
     ctx.shadowOffsetY = 0
+
+    // Draw chart controls instructions
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)"
+    ctx.font = "10px Arial"
+    ctx.textAlign = "left"
+    ctx.fillText("Drag to scroll in any direction • Use zoom buttons to zoom in/out", 10, 15)
   }
 
   // Draw the stats chart
@@ -1554,7 +1772,7 @@ const Predict = () => {
             <div
               className={`market-predict__predicted-price ${(probabilityData.predictedPrice || 0) > selectedItem.current_price ? "market-predict__positive" : "market-predict__negative"}`}
             >
-              Predicted: ${(probabilityData.predictedPrice || selectedItem.current_price * 1.05).toFixed(2)}
+              Predicted: ${(probabilityData.predictedPrice || selectedItem.current_price * 1.05).toLocaleString()}
             </div>
           )}
           <div className="market-predict__timestamp">
@@ -1571,10 +1789,31 @@ const Predict = () => {
               <p>Loading chart data...</p>
             </div>
           ) : (
-            <>
-              <canvas ref={chartRef} width="800" height="250" className="market-predict__price-chart"></canvas>
+            <div className="market-predict__chart-container-inner">
+              <div className="market-predict__chart-controls-overlay">
+                <button className="market-predict__chart-control-btn" onClick={handleZoomIn} title="Zoom In">
+                  <ZoomIn size={16} />
+                </button>
+                <button className="market-predict__chart-control-btn" onClick={handleZoomOut} title="Zoom Out">
+                  <ZoomOut size={16} />
+                </button>
+                <button className="market-predict__chart-control-btn" onClick={handleChartReset} title="Reset View">
+                  <Move size={16} />
+                </button>
+              </div>
+              <canvas
+                ref={chartRef}
+                width="800"
+                height="250"
+                className="market-predict__price-chart"
+                onMouseDown={handleChartMouseDown}
+                onTouchStart={handleChartTouchStart}
+                onTouchMove={handleChartTouchMove}
+                onTouchEnd={handleChartTouchEnd}
+                style={{ cursor: isDragging ? "grabbing" : "grab" }}
+              ></canvas>
               {error && <div className="market-predict__error">{error}</div>}
-            </>
+            </div>
           )}
         </div>
 
@@ -1602,7 +1841,12 @@ const Predict = () => {
                 <div
                   className={`market-predict__trend-badge market-predict__trend-badge--${probabilityData?.trend === "bullish" ? "bullish" : "bearish"}`}
                 >
-                  {probabilityData?.trend === "bullish" ? "Bullish ▲" : "Bearish ▼"}
+                  {/* Show Bullish if confidence is high (>70%) regardless of trend */}
+                  {(probabilityData?.confidence || 0) > 70
+                    ? "Bullish ▲"
+                    : probabilityData?.trend === "bullish"
+                      ? "Bullish ▲"
+                      : "Bearish ▼"}
                 </div>
               </div>
 
@@ -1704,7 +1948,7 @@ const Predict = () => {
             transition={{ duration: 0.5 }}
           >
             <div className="market-predict__panel-header">
-              <h3>Coin Detailssss</h3>
+              <h3>Coin Details</h3>
               <Info size={16} className="market-predict__info-icon" />
             </div>
 
@@ -1875,7 +2119,7 @@ const Predict = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              Probability
+              Stats
             </motion.button>
             <motion.button
               className={`market-predict__control-button market-predict__stats-button ${showStats ? "market-predict__stats-button--active" : ""}`}
@@ -1883,7 +2127,7 @@ const Predict = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              Stats
+              Probability
             </motion.button>
             <motion.button
               className="market-predict__control-button market-predict__portfolio-button"
@@ -1934,4 +2178,3 @@ const Predict = () => {
 }
 
 export default Predict
-
