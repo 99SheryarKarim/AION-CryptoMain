@@ -45,18 +45,22 @@
 .nav-menu ul {
   display: flex;
   list-style: none;
+
   margin: 0;
   padding: 0;
+  
 }
 
 .nav-menu li {
   margin: 0 15px;
+  
 }
 
 .nav-menu a {
   color: #fff;
+  font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
   text-decoration: none;
-  font-size: 16px;
+  font-size: 17px;
   transition: color 0.3s ease;
 }
 
