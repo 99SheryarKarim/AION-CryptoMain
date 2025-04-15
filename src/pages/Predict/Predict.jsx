@@ -22,8 +22,14 @@ import {
   Move,
 } from "lucide-react"
 import "./MarketPredict.css"
+import { useDispatch, useSelector } from "react-redux"
+import { PredictNextPrice, FetchLastPredictions } from "../../RTK/Slices/PredictSlice"
 
 const Predict = () => {
+  const dispatch = useDispatch()
+  // Get prediction data from Redux store
+  const { predicted_next_price, actuals, predictions } = useSelector((state) => state.Prediction)
+
   const [selectedItem, setSelectedItem] = useState(null)
   const [chartData, setChartData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -74,7 +80,127 @@ const Predict = () => {
 
     // Check for any stored prediction results
     checkStoredPredictions(parsedItem)
-  }, [])
+
+    // Fetch previous predictions from backend
+    dispatch(FetchLastPredictions())
+  }, [dispatch])
+
+  // Update chart data when backend predictions are received
+  useEffect(() => {
+    if (actuals.length > 0 && predictions.length > 0) {
+      // Create chart data from actuals and predictions
+      const now = new Date()
+      const newChartData = actuals.map((actual, index) => {
+        // Calculate time based on the current timeframe
+        let time
+        switch (timeframe) {
+          case "30m":
+            time = new Date(now.getTime() - (actuals.length - index) * 60 * 1000) // 1 minute intervals
+            break
+          case "1h":
+            time = new Date(now.getTime() - (actuals.length - index) * 60 * 1000) // 1 minute intervals
+            break
+          case "4h":
+            time = new Date(now.getTime() - (actuals.length - index) * 5 * 60 * 1000) // 5 minute intervals
+            break
+          case "24h":
+          default:
+            time = new Date(now.getTime() - (actuals.length - index) * 60 * 60 * 1000) // 1 hour intervals
+        }
+
+        return {
+          time: time.toLocaleTimeString(),
+          price: actual,
+          fullTime: time,
+        }
+      })
+
+      // Add prediction point if available
+      if (predicted_next_price) {
+        const lastTime = newChartData.length > 0 ? newChartData[newChartData.length - 1].fullTime : now
+        let nextTime
+
+        // Calculate next time based on timeframe
+        switch (timeframe) {
+          case "30m":
+            nextTime = new Date(lastTime.getTime() + 60 * 1000) // 1 minute ahead
+            break
+          case "1h":
+            nextTime = new Date(lastTime.getTime() + 60 * 1000) // 1 minute ahead
+            break
+          case "4h":
+            nextTime = new Date(lastTime.getTime() + 5 * 60 * 1000) // 5 minutes ahead
+            break
+          case "24h":
+          default:
+            nextTime = new Date(lastTime.getTime() + 60 * 60 * 1000) // 1 hour ahead
+        }
+
+        // Add prediction point
+        newChartData.push({
+          time: nextTime.toLocaleTimeString(),
+          price: predicted_next_price,
+          fullTime: nextTime,
+          isPrediction: true, // Mark this as a prediction point
+        })
+      }
+
+      setChartData(newChartData)
+
+      // Generate extended data for scrolling
+      const extendedData = generateExtendedHistoricalData(newChartData, selectedItem)
+      setExtendedChartData(extendedData)
+
+      setLoading(false)
+    }
+  }, [actuals, predictions, predicted_next_price, timeframe, selectedItem])
+
+  // Update probability data when predicted_next_price is received
+  useEffect(() => {
+    if (predicted_next_price && isPredicting) {
+      // Update probability data with the predicted price
+      const lastPrice = chartData.length > 0 ? chartData[chartData.length - 1].price : 0
+      const priceChange = lastPrice > 0 ? (predicted_next_price - lastPrice) / lastPrice : 0
+
+      // Calculate probability based on price change
+      const priceIncreaseProb = Math.min(99, Math.max(1, Math.round(50 + priceChange * 1000)))
+
+      // Update the stats probability with the new prediction
+      if (coinStats) {
+        setCoinStats({
+          ...coinStats,
+          probabilityIncrease: priceIncreaseProb,
+        })
+      }
+
+      setProbabilityData({
+        trend: priceChange >= 0 ? "bullish" : "bearish",
+        confidence: Math.min(95, Math.max(60, 75 + priceChange * 100)),
+        predictedPrice: predicted_next_price,
+        timeframe: pendingTimeframe || timeframe,
+        volatility: Math.abs(priceChange * 100),
+        avgDailyChange: priceChange * 100,
+        momentum: priceChange * 100,
+        support: lastPrice * 0.95,
+        resistance: lastPrice * 1.05,
+        volumePrediction: selectedItem?.total_volume || 0,
+        shortTermTarget: predicted_next_price * 1.01,
+        midTermTarget: predicted_next_price * 1.05,
+        longTermTarget: predicted_next_price * 1.1,
+        sentimentScore: Math.min(100, Math.max(0, 50 + priceChange * 1000)),
+        riskScore: Math.min(10, Math.max(1, Math.round(Math.abs(priceChange) * 100))),
+        priceIncreaseProb,
+        dataReady: true,
+      })
+
+      // Show notification about prediction
+      showNotification({
+        type: "success",
+        message: `Prediction complete for ${selectedItem?.name}`,
+        details: `Predicted next price: $${predicted_next_price.toFixed(2)}`,
+      })
+    }
+  }, [predicted_next_price, isPredicting, chartData, pendingTimeframe, timeframe, coinStats, selectedItem])
 
   // Check for stored predictions and show notifications if needed
   const checkStoredPredictions = (item) => {
@@ -611,7 +737,10 @@ const Predict = () => {
         const symbolResponse = await fetchWithTimeout(symbolUrl, { timeout: 5000 })
 
         if (!symbolResponse.ok) {
-          throw new Error(`CoinCap API error: ${response.status}`)
+          throw new Error(`CoinCap API  { timeout: 5000 })
+
+        if (!symbolResponse.ok) {
+          throw new Error(\`CoinCap API error: ${symbolResponse.status}`)
         }
 
         const symbolData = await symbolResponse.json()
@@ -1166,7 +1295,7 @@ const Predict = () => {
     ctx.stroke()
 
     // If predicting, also draw the orange line with higher frequency
-    if (isPredicting) {
+    if (isPredicting || chartData.some((point) => point.isPrediction)) {
       // Reset shadow for orange line
       ctx.shadowColor = "rgba(255, 150, 50, 0.8)"
       ctx.shadowBlur = 12
@@ -1179,6 +1308,10 @@ const Predict = () => {
       orangeGradient.addColorStop(0.5, "rgba(255, 150, 50, 0.1)")
       orangeGradient.addColorStop(1, "rgba(255, 150, 50, 0)")
 
+      // Find where the prediction starts
+      const predictionStartIndex = visibleData.findIndex((point) => point.isPrediction)
+      const hasPredictionPoint = predictionStartIndex !== -1
+
       // First draw the filled area
       ctx.beginPath()
       ctx.fillStyle = orangeGradient
@@ -1186,11 +1319,15 @@ const Predict = () => {
 
       // Define volatilityFactor here
       const volatilityFactor = 0.03
+
       for (let i = 0; i < visibleData.length; i++) {
         const x = (i / (visibleData.length - 1)) * width
 
-        // Add sine wave to create higher frequency
-        const sineWave = Math.sin(i * 0.5) * volatilityFactor * adjustedPriceRange
+        // Add sine wave to create higher frequency, but only for prediction points
+        const sineWave =
+          hasPredictionPoint && i >= predictionStartIndex
+            ? Math.sin(i * 0.5) * volatilityFactor * adjustedPriceRange
+            : 0
 
         const baseY = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
         const y = baseY + sineWave
@@ -1209,19 +1346,22 @@ const Predict = () => {
 
       // Use bezier curves for smoother lines
       if (visibleData.length > 0) {
-        const firstY =
-          height -
-          ((visibleData[0].price - adjustedMinPrice) / adjustedPriceRange) * height +
-          Math.sin(0) * volatilityFactor * adjustedPriceRange
+        const firstY = height - ((visibleData[0].price - adjustedMinPrice) / adjustedPriceRange) * height
         ctx.moveTo(0, firstY)
 
         for (let i = 1; i < visibleData.length; i++) {
           const x = (i / (visibleData.length - 1)) * width
           const prevX = ((i - 1) / (visibleData.length - 1)) * width
 
-          // Add sine wave to create higher frequency
-          const sineWave = Math.sin(i * 0.5) * volatilityFactor * adjustedPriceRange
-          const prevSineWave = Math.sin((i - 1) * 0.5) * volatilityFactor * adjustedPriceRange
+          // Add sine wave to create higher frequency, but only for prediction points
+          const sineWave =
+            hasPredictionPoint && i >= predictionStartIndex
+              ? Math.sin(i * 0.5) * volatilityFactor * adjustedPriceRange
+              : 0
+          const prevSineWave =
+            hasPredictionPoint && i - 1 >= predictionStartIndex
+              ? Math.sin((i - 1) * 0.5) * volatilityFactor * adjustedPriceRange
+              : 0
 
           const baseY = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
           const y = baseY + sineWave
@@ -1238,6 +1378,23 @@ const Predict = () => {
       }
 
       ctx.stroke()
+
+      // If we have a prediction point, add a marker
+      const predictionPoint = visibleData.find((point) => point.isPrediction)
+      if (predictionPoint) {
+        const pointIndex = visibleData.indexOf(predictionPoint)
+        const x = (pointIndex / (visibleData.length - 1)) * width
+        const y = height - ((predictionPoint.price - adjustedMinPrice) / adjustedPriceRange) * height
+
+        // Draw prediction point marker
+        ctx.beginPath()
+        ctx.arc(x, y, 6, 0, 2 * Math.PI)
+        ctx.fillStyle = "#ff9632"
+        ctx.fill()
+        ctx.strokeStyle = "#ffffff"
+        ctx.lineWidth = 2
+        ctx.stroke()
+      }
     }
 
     // Reset shadow for other elements
@@ -1307,7 +1464,7 @@ const Predict = () => {
 
   // Handle timeframe change
   const handleTimeframeChange = (tf) => {
-    // Store the selected timeframe but don't update the chart yet
+    // Store the selected timeframe
     setPendingTimeframe(tf)
 
     // Visual feedback that timeframe was selected
@@ -1319,6 +1476,19 @@ const Predict = () => {
         button.classList.remove("market-predict__timeframe-button--pending")
       }
     })
+
+    // Show notification
+    showNotification({
+      type: "info",
+      message: `Updating to ${tf} timeframe`,
+      details: "Fetching new data...",
+    })
+
+    // Update the timeframe in the Redux store and fetch new data
+    setTimeframe(tf)
+
+    // Fetch new data with the updated timeframe
+    dispatch(FetchLastPredictions(tf))
   }
 
   // Enhanced notification system
@@ -1380,7 +1550,7 @@ const Predict = () => {
     })
   }
 
-  // Handle predict button click
+  // Handle predict button click - UPDATED to use Redux action
   const handlePredict = () => {
     // Set user initiated prediction flag
     setUserInitiatedPrediction(true)
@@ -1389,63 +1559,24 @@ const Predict = () => {
     // Fetch new data with the current or pending timeframe
     fetchChartData()
 
-    // Set predicting state to true (don't check if already predicting)
+    // Set predicting state to true
     setIsPredicting(true)
 
     // Show notification
     showNotification({
       type: "success",
       message: `Prediction analysis started for ${selectedItem.name}`,
-      details: "Our AI is analyzing market patterns and generating predictions...",
+      details: `Our AI is analyzing market patterns for the ${pendingTimeframe || timeframe} timeframe...`,
     })
 
-    // Generate prediction data based on actual chart data
-    setTimeout(() => {
-      generatePredictionData()
-    }, 500)
+    // Dispatch the prediction action to get prediction from backend
+    // Pass the current timeframe to ensure we get the right prediction
+    dispatch(PredictNextPrice(pendingTimeframe || timeframe))
 
     // Show probability panel after a short delay
     setTimeout(() => {
       setShowStats(true)
     }, 1000)
-
-    // Schedule a prediction result notification after a random time (simulating real prediction)
-    const resultDelay = Math.floor(Math.random() * 10000) + 5000 // 5-15 seconds
-    setTimeout(() => {
-      // Generate a random prediction result
-      const outcome = Math.random() > 0.5 ? "profit" : "loss"
-      const percentageChange =
-        outcome === "profit"
-          ? Math.random() * 5 + 0.5 // 0.5% to 5.5% profit
-          : -(Math.random() * 5 + 0.5) // 0.5% to 5.5% loss
-
-      const initialPrice = selectedItem.current_price
-      const finalPrice = initialPrice * (1 + percentageChange / 100)
-
-      // Create prediction result
-      const predictionResult = {
-        id: Date.now(),
-        assetId: selectedItem.id,
-        assetSymbol: selectedItem.symbol,
-        assetName: selectedItem.name,
-        timestamp: new Date().toISOString(),
-        timeframe: pendingTimeframe || timeframe,
-        initialPrice,
-        finalPrice,
-        percentageChange,
-        outcome,
-      }
-
-      // Add to prediction results
-      setPredictionResults((prev) => [...prev, predictionResult])
-
-      // Store in localStorage
-      const storedPredictions = JSON.parse(localStorage.getItem("predictionResults") || "[]")
-      localStorage.setItem("predictionResults", JSON.stringify([...storedPredictions, predictionResult]))
-
-      // Show notification
-      showPredictionResultNotification(predictionResult)
-    }, resultDelay)
   }
 
   // Generate prediction data based on chart patterns
@@ -1768,11 +1899,11 @@ const Predict = () => {
         </div>
         <div className="market-predict__coin-price-info">
           <div className="market-predict__current-price">${selectedItem.current_price.toLocaleString()}</div>
-          {isPredicting && probabilityData && (
+          {isPredicting && predicted_next_price && (
             <div
-              className={`market-predict__predicted-price ${(probabilityData.predictedPrice || 0) > selectedItem.current_price ? "market-predict__positive" : "market-predict__negative"}`}
+              className={`market-predict__predicted-price ${(predicted_next_price || 0) > selectedItem.current_price ? "market-predict__positive" : "market-predict__negative"}`}
             >
-              Predicted: ${(probabilityData.predictedPrice || selectedItem.current_price * 1.05).toLocaleString()}
+              Predicted: ${predicted_next_price.toLocaleString()}
             </div>
           )}
           <div className="market-predict__timestamp">
