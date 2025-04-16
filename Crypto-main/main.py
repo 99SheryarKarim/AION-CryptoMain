@@ -19,17 +19,19 @@ handler = Mangum(app)
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=["*"],  # In production, replace with specific origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600
 )
 
 # Register routes with tags and prefix
 app.include_router(coingecko_router)
 app.include_router(
     auth_router,
-    prefix=f"{settings.API_V1_PREFIX}/auth",
+    prefix="/auth",
     tags=["Authentication"],
     responses={404: {"description": "Not found"}}
 )

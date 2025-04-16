@@ -22,7 +22,7 @@ class Token(BaseModel):
     class Config:
         from_attributes = True
 
-@router.post('/register', status_code=status.HTTP_201_CREATED)
+@router.post('/register', status_code=status.HTTP_201_CREATED, response_model=Token)
 async def register(user: UserCreate):
     try:
         # Check if username already exists
@@ -55,7 +55,7 @@ async def register(user: UserCreate):
             detail=str(e)
         )
 
-@router.post('/login')
+@router.post('/login', response_model=Token)
 async def login(user: UserCreate):
     try:
         # Find user
@@ -88,7 +88,7 @@ async def login(user: UserCreate):
             detail=str(e)
         )
 
-@router.post('/admin/login')
+@router.post('/admin/login', response_model=Token)
 async def admin_login(user: UserCreate):
     try:
         # Find user
