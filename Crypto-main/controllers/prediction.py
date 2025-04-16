@@ -7,18 +7,46 @@ import pandas as pd
 import yfinance as yf
 import joblib
 from sklearn.preprocessing import MinMaxScaler
-# import plotly.graph_objects as go
-# from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from config import settings
 
-# Download BTC data (Hourly data)
+# Constants
 CRYPTO_PAIR = "BTC-USD"
 LOOKBACK = 60
 EPOCHS = 50
+MODEL_PATH = "bilstm_attention_model.pth"
 
-def get_latest_data(symbol=CRYPTO_PAIR):
-    data = yf.download(tickers=symbol, period="60d", interval="1h")
+# Timeframe mapping for yfinance
+TIMEFRAME_MAP = {
+    "30m": {"period": "7d", "interval": "30m"},
+    "1h": {"period": "60d", "interval": "1h"},
+    "4h": {"period": "60d", "interval": "1h"},  # We'll resample this
+    "24h": {"period": "730d", "interval": "1d"}
+}
+
+def get_latest_data(symbol=CRYPTO_PAIR, timeframe="1h"):
+    """Get latest data with proper timeframe handling"""
+    if timeframe not in TIMEFRAME_MAP:
+        raise ValueError(f"Invalid timeframe. Must be one of {list(TIMEFRAME_MAP.keys())}")
+    
+    tf_config = TIMEFRAME_MAP[timeframe]
+    data = yf.download(
+        tickers=symbol,
+        period=tf_config["period"],
+        interval=tf_config["interval"]
+    )
+    
     if data.empty:
         raise ValueError("No data retrieved. Adjust period or interval.")
+    
+    # Resample if needed (for 4h)
+    if timeframe == "4h" and tf_config["interval"] == "1h":
+        data = data.resample('4H').agg({
+            'Open': 'first',
+            'High': 'max',
+            'Low': 'min',
+            'Close': 'last',
+            'Volume': 'sum'
+        })
     
     # Add technical indicators
     data['SMA_10'] = data['Close'].rolling(window=10).mean()
@@ -30,19 +58,23 @@ def get_latest_data(symbol=CRYPTO_PAIR):
     
     return data
 
-def predict_next_price(symbol=CRYPTO_PAIR):
+def predict_next_price(symbol=CRYPTO_PAIR, timeframe="24h"):
+    """Predict next price with timeframe support"""
     try:
+        if timeframe not in TIMEFRAME_MAP:
+            timeframe = settings.DEFAULT_TIMEFRAME
+        
         # Load the model and scaler
-        model, X_train, scaler, scaled_data = get_model()
+        model, X_train, scaler, scaled_data = get_model(timeframe)
         
         # Fetch latest data
-        latest_data = get_latest_data(symbol)
+        latest_data = get_latest_data(symbol, timeframe)
         
         # Normalize features
         scaled_features = scaler.transform(latest_data[['Close', 'SMA_10', 'RSI', 'MACD', 'Bollinger_Upper', 'Bollinger_Lower']])
         
         # Extract the last `LOOKBACK` data points as input
-        X_input = scaled_features[-LOOKBACK:].reshape(1, LOOKBACK, 6)  # Shape: (1, 60, 6)
+        X_input = scaled_features[-LOOKBACK:].reshape(1, LOOKBACK, 6)
         
         # Make prediction
         with torch.no_grad():
@@ -55,20 +87,34 @@ def predict_next_price(symbol=CRYPTO_PAIR):
             np.concatenate([prediction_scaled, np.zeros((1, 5))], axis=1)
         )[0, 0]
         
-        # Return the next price and timestamp
+        # Get the last actual price for comparison
+        last_actual_price = latest_data['Close'].iloc[-1]
+        
+        # Calculate time until next prediction
         last_timestamp = latest_data.index[-1]
-        next_timestamp = last_timestamp + pd.Timedelta(hours=1)  # Assuming hourly data
-
-        print(X_input)
+        next_timestamp = get_next_timestamp(last_timestamp, timeframe)
         
         return {
             "symbol": symbol,
+            "timeframe": timeframe,
             "predicted_price": float(prediction),
-            # "timestamp": next_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            "last_actual_price": float(last_actual_price),
+            "prediction_time": next_timestamp.isoformat(),
+            "current_time": pd.Timestamp.now().isoformat()
         }
     
     except Exception as e:
         return {"error": str(e)}
+
+def get_next_timestamp(last_timestamp, timeframe):
+    """Calculate next timestamp based on timeframe"""
+    timeframe_deltas = {
+        "30m": pd.Timedelta(minutes=30),
+        "1h": pd.Timedelta(hours=1),
+        "4h": pd.Timedelta(hours=4),
+        "24h": pd.Timedelta(days=1)
+    }
+    return last_timestamp + timeframe_deltas[timeframe]
 
 class BiLSTMWithAttention(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers):
@@ -83,21 +129,10 @@ class BiLSTMWithAttention(nn.Module):
         attended_output = torch.sum(attention_weights * lstm_out, dim=1)
         return self.fc(attended_output)
 
-
-# Feature Engineering (Include Moving Averages, RSI, MACD, and Bollinger Bands)
-def add_technical_indicators():
-    data = yf.download(tickers=CRYPTO_PAIR, period="60d", interval="1h")
-
-    if data.empty:
-        raise ValueError("No data retrieved. Adjust period or interval.")
-
-    data['SMA_10'] = data['Close'].rolling(window=10).mean()
-    data['RSI'] = 100 - (100 / (1 + (data['Close'].diff().rolling(14).mean() / data['Close'].diff().rolling(14).std())))
-    data['MACD'] = data['Close'].ewm(span=12, adjust=False).mean() - data['Close'].ewm(span=26, adjust=False).mean()
-    data['Bollinger_Upper'] = data['Close'].rolling(window=20).mean() + 2 * data['Close'].rolling(window=20).std()
-    data['Bollinger_Lower'] = data['Close'].rolling(window=20).mean() - 2 * data['Close'].rolling(window=20).std()
-    data.dropna(inplace=True)
-
+def add_technical_indicators(timeframe="24h"):
+    """Add technical indicators with timeframe support"""
+    data = get_latest_data(CRYPTO_PAIR, timeframe)
+    
     # Normalize Data
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(data[['Close', 'SMA_10', 'RSI', 'MACD', 'Bollinger_Upper', 'Bollinger_Lower']])
@@ -118,21 +153,17 @@ def add_technical_indicators():
 
     return X_train, y_train, model, criterion, optimizer, scaler, scaled_data
 
-# Train Model
-MODEL_PATH = "bilstm_attention_model.pth"
-
-# Check if the model already exists
-def get_model():
-    X_train, y_train, model, criterion, optimizer, scaler, scaled_data = add_technical_indicators()
-    if os.path.exists(MODEL_PATH):
-        print("Loading pre-trained model...")
-        # Initialize the model architecture
+def get_model(timeframe="24h"):
+    """Get or train model with timeframe support"""
+    model_path = f"{MODEL_PATH}_{timeframe}"
+    X_train, y_train, model, criterion, optimizer, scaler, scaled_data = add_technical_indicators(timeframe)
+    
+    if os.path.exists(model_path):
+        print(f"Loading pre-trained model for {timeframe} timeframe...")
         model = BiLSTMWithAttention(input_size=6, hidden_size=128, num_layers=3)
-        # Load the saved state dictionary
-        model.load_state_dict(torch.load(MODEL_PATH))
-        # model.eval()  # Set the model to evaluation mode
+        model.load_state_dict(torch.load(model_path))
     else:
-        print("Training the model...")
+        print(f"Training model for {timeframe} timeframe...")
         for epoch in range(EPOCHS):
             model.train()
             optimizer.zero_grad()
@@ -143,34 +174,20 @@ def get_model():
             if epoch % 10 == 0:
                 print(f"Epoch {epoch}, Loss: {loss.item()}")
 
-        # Save the trained model
-        torch.save(model.state_dict(), MODEL_PATH)
+        torch.save(model.state_dict(), model_path)
         print("Model saved.")
 
     return model, X_train, scaler, scaled_data
 
-
-# Prepare Data for Prediction
-def prepare_data_for_prediction():
-    model, X_train, scaler, scaled_data = get_model()
+def prepare_data_for_prediction(timeframe="24h"):
+    """Prepare prediction data with timeframe support"""
+    model, X_train, scaler, scaled_data = get_model(timeframe)
     model.eval()
-    predictions = model(X_train).detach().numpy()
+    
+    with torch.no_grad():
+        predictions = model(X_train).numpy()
+    
     predictions = scaler.inverse_transform(np.column_stack((predictions, np.zeros((len(predictions), 5)))))[:, 0]
-
     actual_prices = scaler.inverse_transform(scaled_data[-len(predictions):])[:, 0]
 
-    print("Actual Price\tPredicted Price")
-    for actual, predicted in zip(actual_prices, predictions):
-        print(f"{actual:.2f}\t\t{predicted:.2f}")
-
     return actual_prices, predictions
-
-prepare_data_for_prediction()
-
-
-# Plot Results with Plotly
-# fig = go.Figure()
-# fig.add_trace(go.Scatter(x=data.index[-len(predictions):], y=scaler.inverse_transform(scaled_data[-len(predictions):])[:, 0], mode='lines', name='Actual'))
-# fig.add_trace(go.Scatter(x=data.index[-len(predictions):], y=predictions, mode='lines', name='Predicted'))
-# fig.update_layout(title='BTC Price Prediction using BiLSTM + Attention', xaxis_title='Time', yaxis_title='Price (USD)')
-# fig.show()

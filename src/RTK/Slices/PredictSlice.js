@@ -1,15 +1,30 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit"
 import axios from "axios"
+import { API_BASE_URL, ENDPOINTS, RETRY_DELAY, MAX_RETRIES } from "../../config"
+
+// Helper function for retrying failed requests
+const retryRequest = async (requestFn, retries = MAX_RETRIES, delay = RETRY_DELAY) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await requestFn()
+    } catch (error) {
+      if (i === retries - 1) throw error
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+}
 
 // Update the FetchLastPredictions action to accept timeframe
 export const FetchLastPredictions = createAsyncThunk(
   "prediction/fetchLastPredictions",
   async (timeframe = "24h", { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/api/predictions/history?timeframe=${timeframe}`)
+      const response = await retryRequest(() => 
+        axios.post(`${API_BASE_URL}${ENDPOINTS.PREVIOUS_PREDICTIONS}`, { timeframe })
+      )
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response.data)
+      return rejectWithValue(error.response?.data || { error: "Failed to fetch predictions" })
     }
   },
 )
@@ -19,10 +34,12 @@ export const PredictNextPrice = createAsyncThunk(
   "prediction/predictNextPrice",
   async (timeframe = "24h", { rejectWithValue }) => {
     try {
-      const response = await axios.post("/api/predictions/predict", { timeframe })
+      const response = await retryRequest(() => 
+        axios.post(`${API_BASE_URL}${ENDPOINTS.PREDICT}`, { timeframe })
+      )
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response.data)
+      return rejectWithValue(error.response?.data || { error: "Failed to predict next price" })
     }
   },
 )

@@ -24,6 +24,7 @@ import {
 import "./MarketPredict.css"
 import { useDispatch, useSelector } from "react-redux"
 import { PredictNextPrice, FetchLastPredictions } from "../../RTK/Slices/PredictSlice"
+import { COINCAP_API_BASE_URL, COINCAP_API_KEY, RATE_LIMIT_DELAY } from "../../config"
 
 const Predict = () => {
   const dispatch = useDispatch()
@@ -606,7 +607,7 @@ const Predict = () => {
 
         setLoading(false)
 
-        // Show notification about using simulation
+        // Show notification but don't show error in UI to avoid alarming users
         showNotification({
           type: "info",
           message: "Using market simulation",
@@ -640,8 +641,7 @@ const Predict = () => {
     const basePrice = data[0].price
     const volatility = item.price_change_percentage_24h ? Math.abs(item.price_change_percentage_24h) / 100 : 0.02
 
-    // Generate 3x more data points for the past
-    const extendedData = []
+    const dataPoints = []
     const oldestTime = data[0].fullTime
 
     // Generate past data
@@ -653,7 +653,7 @@ const Predict = () => {
       const randomFactor = (Math.random() - 0.5) * volatility
       const priceFactor = 1 + randomFactor - trendFactor
 
-      extendedData.push({
+      dataPoints.push({
         time: time.toLocaleTimeString(),
         price: basePrice * priceFactor,
         fullTime: time,
@@ -661,7 +661,7 @@ const Predict = () => {
     }
 
     // Add the actual data
-    return [...extendedData, ...data]
+    return [...dataPoints, ...data]
   }
 
   // Draw stats chart when stats data is available
@@ -670,6 +670,61 @@ const Predict = () => {
       drawStatsChart()
     }
   }, [coinStats, showProbability])
+
+  // Enhanced fetchFromCoinCap with rate limit handling and retries
+  const fetchFromCoinCap = async (id, symbol, tf) => {
+    const headers = COINCAP_API_KEY ? { Authorization: `Bearer ${COINCAP_API_KEY}` } : {}
+
+    try {
+      // Add delay between requests to respect rate limits
+      await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY))
+
+      const symbolResponse = await fetchWithTimeout(
+        `${COINCAP_API_BASE_URL}/assets/${id.toLowerCase()}`,
+        { headers, timeout: 5000 }
+      )
+
+      if (!symbolResponse.ok) {
+        if (symbolResponse.status === 429) {
+          // Rate limit hit - wait longer and retry
+          await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY * 2))
+          return fetchFromCoinCap(id, symbol, tf) // Retry
+        }
+        throw new Error(`CoinCap API error: ${symbolResponse.status}`)
+      }
+
+      const symbolData = await symbolResponse.json()
+
+      // Get historical data with rate limit handling
+      await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY))
+
+      const historyResponse = await fetchWithTimeout(
+        `${COINCAP_API_BASE_URL}/assets/${id.toLowerCase()}/history?interval=${timeframeToInterval(tf)}&start=${getStartTime(tf)}&end=${Date.now()}`,
+        { headers, timeout: 5000 }
+      )
+
+      if (!historyResponse.ok) {
+        if (historyResponse.status === 429) {
+          // Rate limit hit - wait longer and retry
+          await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY * 2))
+          return fetchFromCoinCap(id, symbol, tf) // Retry
+        }
+        throw new Error(`CoinCap API error: ${historyResponse.status}`)
+      }
+
+      const historyData = await historyResponse.json()
+      return {
+        currentPrice: parseFloat(symbolData.data.priceUsd),
+        historicalData: historyData.data.map((item) => ({
+          time: new Date(item.time),
+          price: parseFloat(item.priceUsd),
+        })),
+      }
+    } catch (error) {
+      console.error("CoinCap API failed:", error)
+      throw error
+    }
+  }
 
   // Fetch historical data from API with improved error handling and multiple sources
   const fetchHistoricalData = async (item, tf) => {
@@ -684,8 +739,8 @@ const Predict = () => {
       // First try CoinCap API
       try {
         const data = await fetchFromCoinCap(id, symbol, tf)
-        if (data && data.length > 10) {
-          return data
+        if (data && data.historicalData.length > 10) {
+          return data.historicalData
         }
       } catch (error) {
         console.log("CoinCap API failed:", error.message)
@@ -715,60 +770,6 @@ const Predict = () => {
       throw new Error("Could not fetch sufficient data from any API")
     } catch (error) {
       console.error("All API attempts failed:", error)
-      throw error
-    }
-  }
-
-  // Fetch from CoinCap API with timeout
-  const fetchFromCoinCap = async (id, symbol, tf) => {
-    try {
-      const interval = timeframeToInterval(tf)
-      const start = getStartTime(tf)
-      const end = Date.now()
-
-      // Try with ID first
-      const apiUrl = `https://api.coincap.io/v2/assets/${id}/history?interval=${interval}&start=${start}&end=${end}`
-
-      const response = await fetchWithTimeout(apiUrl, { timeout: 5000 })
-
-      if (!response.ok) {
-        // If ID fails, try with symbol
-        const symbolUrl = `https://api.coincap.io/v2/assets/${symbol}/history?interval=${interval}&start=${start}&end=${end}`
-        const symbolResponse = await fetchWithTimeout(symbolUrl, { timeout: 5000 })
-
-        if (!symbolResponse.ok) {
-          throw new Error(`CoinCap API  { timeout: 5000 })
-
-        if (!symbolResponse.ok) {
-          throw new Error(\`CoinCap API error: ${symbolResponse.status}`)
-        }
-
-        const symbolData = await symbolResponse.json()
-
-        if (!symbolData.data || symbolData.data.length < 10) {
-          throw new Error("Insufficient data points from CoinCap API")
-        }
-
-        return symbolData.data.map((item) => ({
-          time: new Date(item.time).toLocaleTimeString(),
-          price: Number.parseFloat(item.priceUsd),
-          fullTime: new Date(item.time),
-        }))
-      }
-
-      const jsonData = await response.json()
-
-      if (!jsonData.data || jsonData.data.length < 10) {
-        throw new Error("Insufficient data points from CoinCap API")
-      }
-
-      return jsonData.data.map((item) => ({
-        time: new Date(item.time).toLocaleTimeString(),
-        price: Number.parseFloat(item.priceUsd),
-        fullTime: new Date(item.time),
-      }))
-    } catch (error) {
-      console.error("CoinCap API error:", error)
       throw error
     }
   }
@@ -1550,33 +1551,61 @@ const Predict = () => {
     })
   }
 
-  // Handle predict button click - UPDATED to use Redux action
-  const handlePredict = () => {
-    // Set user initiated prediction flag
-    setUserInitiatedPrediction(true)
-    localStorage.setItem("userInitiatedPrediction", "true")
+  // Enhanced handlePredict function
+  const handlePredict = async () => {
+    try {
+      setIsPredicting(true)
+      setError(null)
 
-    // Fetch new data with the current or pending timeframe
-    fetchChartData()
+      // Fetch chart data first
+      await fetchChartData()
 
-    // Set predicting state to true
-    setIsPredicting(true)
+      // Dispatch prediction action with current timeframe
+      const result = await dispatch(PredictNextPrice(timeframe)).unwrap()
 
-    // Show notification
-    showNotification({
-      type: "success",
-      message: `Prediction analysis started for ${selectedItem.name}`,
-      details: `Our AI is analyzing market patterns for the ${pendingTimeframe || timeframe} timeframe...`,
-    })
+      if (result.predicted_price) {
+        // Show success notification
+        showPredictionResultNotification({
+          success: true,
+          price: result.predicted_price,
+          timeframe,
+        })
 
-    // Dispatch the prediction action to get prediction from backend
-    // Pass the current timeframe to ensure we get the right prediction
-    dispatch(PredictNextPrice(pendingTimeframe || timeframe))
+        // Update chart with new prediction
+        setChartData((prevData) => {
+          const lastTime = prevData[prevData.length - 1]?.time
+          const nextTime = lastTime ? new Date(new Date(lastTime).getTime() + getTimeframeMilliseconds(timeframe)) : new Date()
 
-    // Show probability panel after a short delay
-    setTimeout(() => {
-      setShowStats(true)
-    }, 1000)
+          return [...prevData, {
+            time: nextTime.toLocaleTimeString(),
+            price: result.predicted_price,
+            isPrediction: true,
+            fullTime: nextTime,
+          }]
+        })
+      }
+    } catch (error) {
+      console.error("Prediction failed:", error)
+      setError(error.message || "Failed to make prediction")
+      showNotification({
+        type: "error",
+        message: "Failed to make prediction. Please try again later.",
+        duration: 5000,
+      })
+    } finally {
+      setIsPredicting(false)
+    }
+  }
+
+  // Helper function to get milliseconds for timeframe
+  const getTimeframeMilliseconds = (tf) => {
+    const map = {
+      "30m": 30 * 60 * 1000,
+      "1h": 60 * 60 * 1000,
+      "4h": 4 * 60 * 60 * 1000,
+      "24h": 24 * 60 * 60 * 1000,
+    }
+    return map[tf] || map["1h"]
   }
 
   // Generate prediction data based on chart patterns
