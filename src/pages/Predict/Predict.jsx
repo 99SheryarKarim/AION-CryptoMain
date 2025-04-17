@@ -44,9 +44,9 @@ const Predict = () => {
   const [coinDetails, setCoinDetails] = useState(null)
   const [coinStats, setCoinStats] = useState(null)
   const [showStats, setShowStats] = useState(false)
-  const [notifications, setNotifications] = useState([]) // Array to store multiple notifications
-  const [predictionResults, setPredictionResults] = useState([]) // Store prediction results
-  const [userInitiatedPrediction, setUserInitiatedPrediction] = useState(false) // Track if user clicked predict
+  const [notifications, setNotifications] = useState([])
+  const [predictionResults, setPredictionResults] = useState([])
+  const [userInitiatedPrediction, setUserInitiatedPrediction] = useState(false)
   const chartRef = useRef(null)
   const statsChartRef = useRef(null)
   const animationRef = useRef(null)
@@ -83,8 +83,8 @@ const Predict = () => {
     checkStoredPredictions(parsedItem)
 
     // Fetch previous predictions from backend
-    dispatch(FetchLastPredictions())
-  }, [dispatch])
+    dispatch(FetchLastPredictions({ symbol: parsedItem.symbol, timeframe }))
+  }, [dispatch, timeframe])
 
   // Update chart data when backend predictions are received
   useEffect(() => {
@@ -96,17 +96,17 @@ const Predict = () => {
         let time
         switch (timeframe) {
           case "30m":
-            time = new Date(now.getTime() - (actuals.length - index) * 60 * 1000) // 1 minute intervals
+            time = new Date(now.getTime() - (actuals.length - index) * 60 * 1000)
             break
           case "1h":
-            time = new Date(now.getTime() - (actuals.length - index) * 60 * 1000) // 1 minute intervals
+            time = new Date(now.getTime() - (actuals.length - index) * 60 * 1000)
             break
           case "4h":
-            time = new Date(now.getTime() - (actuals.length - index) * 5 * 60 * 1000) // 5 minute intervals
+            time = new Date(now.getTime() - (actuals.length - index) * 5 * 60 * 1000)
             break
           case "24h":
           default:
-            time = new Date(now.getTime() - (actuals.length - index) * 60 * 60 * 1000) // 1 hour intervals
+            time = new Date(now.getTime() - (actuals.length - index) * 60 * 60 * 1000)
         }
 
         return {
@@ -124,17 +124,17 @@ const Predict = () => {
         // Calculate next time based on timeframe
         switch (timeframe) {
           case "30m":
-            nextTime = new Date(lastTime.getTime() + 60 * 1000) // 1 minute ahead
+            nextTime = new Date(lastTime.getTime() + 60 * 1000)
             break
           case "1h":
-            nextTime = new Date(lastTime.getTime() + 60 * 1000) // 1 minute ahead
+            nextTime = new Date(lastTime.getTime() + 60 * 1000)
             break
           case "4h":
-            nextTime = new Date(lastTime.getTime() + 5 * 60 * 1000) // 5 minutes ahead
+            nextTime = new Date(lastTime.getTime() + 5 * 60 * 1000)
             break
           case "24h":
           default:
-            nextTime = new Date(lastTime.getTime() + 60 * 60 * 1000) // 1 hour ahead
+            nextTime = new Date(lastTime.getTime() + 60 * 60 * 1000)
         }
 
         // Add prediction point
@@ -142,7 +142,7 @@ const Predict = () => {
           time: nextTime.toLocaleTimeString(),
           price: predicted_next_price,
           fullTime: nextTime,
-          isPrediction: true, // Mark this as a prediction point
+          isPrediction: true,
         })
       }
 
@@ -1489,7 +1489,7 @@ const Predict = () => {
     setTimeframe(tf)
 
     // Fetch new data with the updated timeframe
-    dispatch(FetchLastPredictions(tf))
+    dispatch(FetchLastPredictions({ symbol: selectedItem.symbol, timeframe }))
   }
 
   // Enhanced notification system
@@ -1560,8 +1560,11 @@ const Predict = () => {
       // Fetch chart data first
       await fetchChartData()
 
-      // Dispatch prediction action with current timeframe
-      const result = await dispatch(PredictNextPrice(timeframe)).unwrap()
+      // Dispatch prediction action with current symbol and timeframe
+      const result = await dispatch(PredictNextPrice({ 
+        symbol: selectedItem.symbol, 
+        timeframe 
+      })).unwrap()
 
       if (result.predicted_price) {
         // Show success notification

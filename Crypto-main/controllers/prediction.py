@@ -8,12 +8,12 @@ import yfinance as yf
 import joblib
 from sklearn.preprocessing import MinMaxScaler
 from config import settings
+from fastapi import HTTPException
 
 # Constants
-CRYPTO_PAIR = "BTC-USD"
 LOOKBACK = 60
 EPOCHS = 50
-MODEL_PATH = "bilstm_attention_model.pth"
+MODEL_PATH = "models"  # Directory to store models for different coins
 
 # Timeframe mapping for yfinance
 TIMEFRAME_MAP = {
@@ -23,10 +23,14 @@ TIMEFRAME_MAP = {
     "24h": {"period": "730d", "interval": "1d"}
 }
 
-def get_latest_data(symbol=CRYPTO_PAIR, timeframe="1h"):
+def get_latest_data(symbol, timeframe="1h"):
     """Get latest data with proper timeframe handling"""
     if timeframe not in TIMEFRAME_MAP:
         raise ValueError(f"Invalid timeframe. Must be one of {list(TIMEFRAME_MAP.keys())}")
+    
+    # Add -USD suffix if not present
+    if not symbol.endswith('-USD'):
+        symbol = f"{symbol}-USD"
     
     tf_config = TIMEFRAME_MAP[timeframe]
     data = yf.download(
@@ -36,7 +40,7 @@ def get_latest_data(symbol=CRYPTO_PAIR, timeframe="1h"):
     )
     
     if data.empty:
-        raise ValueError("No data retrieved. Adjust period or interval.")
+        raise ValueError(f"No data retrieved for {symbol}. Adjust period or interval.")
     
     # Resample if needed (for 4h)
     if timeframe == "4h" and tf_config["interval"] == "1h":
@@ -58,14 +62,14 @@ def get_latest_data(symbol=CRYPTO_PAIR, timeframe="1h"):
     
     return data
 
-def predict_next_price(symbol=CRYPTO_PAIR, timeframe="24h"):
+def predict_next_price(symbol, timeframe="24h"):
     """Predict next price with timeframe support"""
     try:
         if timeframe not in TIMEFRAME_MAP:
             timeframe = settings.DEFAULT_TIMEFRAME
         
         # Load the model and scaler
-        model, X_train, scaler, scaled_data = get_model(timeframe)
+        model, X_train, scaler, scaled_data = get_model(symbol, timeframe)
         
         # Fetch latest data
         latest_data = get_latest_data(symbol, timeframe)
@@ -129,9 +133,9 @@ class BiLSTMWithAttention(nn.Module):
         attended_output = torch.sum(attention_weights * lstm_out, dim=1)
         return self.fc(attended_output)
 
-def add_technical_indicators(timeframe="24h"):
+def add_technical_indicators(symbol, timeframe="24h"):
     """Add technical indicators with timeframe support"""
-    data = get_latest_data(CRYPTO_PAIR, timeframe)
+    data = get_latest_data(symbol, timeframe)
     
     # Normalize Data
     scaler = MinMaxScaler()
@@ -153,17 +157,24 @@ def add_technical_indicators(timeframe="24h"):
 
     return X_train, y_train, model, criterion, optimizer, scaler, scaled_data
 
-def get_model(timeframe="24h"):
+def get_model(symbol, timeframe="24h"):
     """Get or train model with timeframe support"""
-    model_path = f"{MODEL_PATH}_{timeframe}"
-    X_train, y_train, model, criterion, optimizer, scaler, scaled_data = add_technical_indicators(timeframe)
+    # Create models directory if it doesn't exist
+    os.makedirs(MODEL_PATH, exist_ok=True)
     
-    if os.path.exists(model_path):
-        print(f"Loading pre-trained model for {timeframe} timeframe...")
+    # Create model path with symbol and timeframe
+    model_path = os.path.join(MODEL_PATH, f"{symbol}_{timeframe}_model.pth")
+    scaler_path = os.path.join(MODEL_PATH, f"{symbol}_{timeframe}_scaler.pkl")
+    
+    X_train, y_train, model, criterion, optimizer, scaler, scaled_data = add_technical_indicators(symbol, timeframe)
+    
+    if os.path.exists(model_path) and os.path.exists(scaler_path):
+        print(f"Loading pre-trained model for {symbol} {timeframe} timeframe...")
         model = BiLSTMWithAttention(input_size=6, hidden_size=128, num_layers=3)
         model.load_state_dict(torch.load(model_path))
+        scaler = joblib.load(scaler_path)
     else:
-        print(f"Training model for {timeframe} timeframe...")
+        print(f"Training model for {symbol} {timeframe} timeframe...")
         for epoch in range(EPOCHS):
             model.train()
             optimizer.zero_grad()
@@ -174,20 +185,38 @@ def get_model(timeframe="24h"):
             if epoch % 10 == 0:
                 print(f"Epoch {epoch}, Loss: {loss.item()}")
 
+        # Save model and scaler
         torch.save(model.state_dict(), model_path)
-        print("Model saved.")
+        joblib.dump(scaler, scaler_path)
+        print(f"Model saved for {symbol} {timeframe} timeframe.")
 
     return model, X_train, scaler, scaled_data
 
-def prepare_data_for_prediction(timeframe="24h"):
+def prepare_data_for_prediction(symbol, timeframe="24h"):
     """Prepare prediction data with timeframe support"""
-    model, X_train, scaler, scaled_data = get_model(timeframe)
-    model.eval()
-    
-    with torch.no_grad():
-        predictions = model(X_train).numpy()
-    
-    predictions = scaler.inverse_transform(np.column_stack((predictions, np.zeros((len(predictions), 5)))))[:, 0]
-    actual_prices = scaler.inverse_transform(scaled_data[-len(predictions):])[:, 0]
-
-    return actual_prices, predictions
+    try:
+        # Get latest data first to validate the symbol and timeframe
+        latest_data = get_latest_data(symbol, timeframe)
+        
+        # Get model and data
+        model, X_train, scaler, scaled_data = get_model(symbol, timeframe)
+        model.eval()
+        
+        with torch.no_grad():
+            predictions = model(X_train).numpy()
+        
+        # Denormalize predictions
+        predictions_denorm = scaler.inverse_transform(
+            np.concatenate([predictions, np.zeros((len(predictions), 5))], axis=1)
+        )[:, 0]
+        
+        # Get actual prices
+        actuals = latest_data['Close'].values[-len(predictions_denorm):]
+        
+        return actuals, predictions_denorm
+    except Exception as e:
+        print(f"Error in prepare_data_for_prediction: {str(e)}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Failed to prepare prediction data: {str(e)}"
+        )

@@ -14,34 +14,40 @@ const retryRequest = async (requestFn, retries = MAX_RETRIES, delay = RETRY_DELA
   }
 }
 
-// Update the FetchLastPredictions action to accept timeframe
+// Update the FetchLastPredictions action to accept both symbol and timeframe
 export const FetchLastPredictions = createAsyncThunk(
   "prediction/fetchLastPredictions",
-  async (timeframe = "24h", { rejectWithValue }) => {
+  async ({ symbol, timeframe = "24h" }, { rejectWithValue }) => {
     try {
       const response = await retryRequest(() => 
-        axios.post(`${API_BASE_URL}${ENDPOINTS.PREVIOUS_PREDICTIONS}`, { timeframe })
+        axios.post(`${API_BASE_URL}${ENDPOINTS.PREVIOUS_PREDICTIONS}`, { 
+          symbol: symbol.toUpperCase(),
+          timeframe 
+        })
       )
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data || { error: "Failed to fetch predictions" })
+      return rejectWithValue(error.response?.data?.message || "Failed to fetch predictions")
     }
-  },
+  }
 )
 
-// Update the PredictNextPrice action to accept timeframe
+// Update the PredictNextPrice action to accept both symbol and timeframe
 export const PredictNextPrice = createAsyncThunk(
   "prediction/predictNextPrice",
-  async (timeframe = "24h", { rejectWithValue }) => {
+  async ({ symbol, timeframe = "24h" }, { rejectWithValue }) => {
     try {
       const response = await retryRequest(() => 
-        axios.post(`${API_BASE_URL}${ENDPOINTS.PREDICT}`, { timeframe })
+        axios.post(`${API_BASE_URL}${ENDPOINTS.PREDICT}`, { 
+          symbol: symbol.toUpperCase(),
+          timeframe 
+        })
       )
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data || { error: "Failed to predict next price" })
+      return rejectWithValue(error.response?.data?.message || "Failed to predict next price")
     }
-  },
+  }
 )
 
 const initialState = {
@@ -55,7 +61,11 @@ const initialState = {
 const PredictSlice = createSlice({
   name: "Prediction",
   initialState,
-  reducers: {},
+  reducers: {
+    clearError: (state) => {
+      state.error = null
+    }
+  },
   extraReducers: (builder) => {
     builder
       // FetchLastPredictions cases
@@ -67,6 +77,7 @@ const PredictSlice = createSlice({
         state.loading = false
         state.actuals = action.payload.actuals || []
         state.predictions = action.payload.predictions || []
+        state.error = null
       })
       .addCase(FetchLastPredictions.rejected, (state, action) => {
         state.loading = false
@@ -81,9 +92,9 @@ const PredictSlice = createSlice({
       .addCase(PredictNextPrice.fulfilled, (state, action) => {
         state.loading = false
         state.predicted_next_price = action.payload.predicted_price
-        // Optionally update actuals and predictions if the API returns them
         if (action.payload.actuals) state.actuals = action.payload.actuals
         if (action.payload.predictions) state.predictions = action.payload.predictions
+        state.error = null
       })
       .addCase(PredictNextPrice.rejected, (state, action) => {
         state.loading = false
@@ -92,4 +103,5 @@ const PredictSlice = createSlice({
   },
 })
 
+export const { clearError } = PredictSlice.actions
 export default PredictSlice.reducer
