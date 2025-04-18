@@ -138,10 +138,40 @@ const Predict = () => {
     ctx.scale(chartScale, chartScale)
     ctx.translate(-width / 2 + chartOffset, -height / 2 + chartVerticalOffset)
 
-    // Draw price line
+    // Draw orange line only if prediction has been made
+    if (showPredictionLine) {
+      ctx.beginPath()
+      ctx.strokeStyle = '#FFA500' // Orange color
+      ctx.lineWidth = 3 // Increased from 1 to 3 for bolder line
+      ctx.shadowColor = 'rgba(255, 165, 0, 0.5)' // Orange shadow
+      ctx.shadowBlur = 10 // Shadow blur effect
+      ctx.shadowOffsetY = 3 // Shadow offset below the line
+
+      let firstValidPoint = true
+      chartData.forEach((point, index) => {
+        if (!point || point.price === undefined || isNaN(point.price)) return
+
+        const x = padding + (chartWidth * (index / (chartData.length - 1)))
+        const y = padding + (chartHeight * (1 - (point.price - minValue) / valueRange)) - 3 // 3px above
+
+        if (firstValidPoint) {
+          ctx.moveTo(x, y)
+          firstValidPoint = false
+        } else {
+          ctx.lineTo(x, y)
+        }
+      })
+
+      ctx.stroke()
+    }
+
+    // Draw blue line
     ctx.beginPath()
     ctx.strokeStyle = '#5bc0de'
     ctx.lineWidth = 1
+    ctx.shadowColor = 'rgba(255, 165, 0, 0.3)' // Orange shadow for blue line
+    ctx.shadowBlur = 8 // Slightly less blur for blue line
+    ctx.shadowOffsetY = 2 // Slightly less offset for blue line
 
     let firstValidPoint = true
     chartData.forEach((point, index) => {
@@ -201,6 +231,7 @@ const Predict = () => {
   // Add this state at the top with other state declarations
   const [predictedPrice, setPredictedPrice] = useState(null)
   const [showPrediction, setShowPrediction] = useState(false)
+  const [showPredictionLine, setShowPredictionLine] = useState(false)
 
   // Add useEffect for live UTC time updates
   useEffect(() => {
@@ -1608,6 +1639,7 @@ const Predict = () => {
       setIsPredicting(true)
       setError(null)
       setShowPrediction(false)
+      setShowPredictionLine(true) // Add this line to show the prediction line
 
       // Show immediate feedback
       showNotification({
