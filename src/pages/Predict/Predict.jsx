@@ -66,6 +66,29 @@ const Predict = () => {
   const [chartVerticalOffset, setChartVerticalOffset] = useState(0)
   const [dragStartY, setDragStartY] = useState(0)
 
+  const [utcTime, setUtcTime] = useState(new Date())
+
+  // Add useEffect for live UTC time updates
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setUtcTime(new Date())
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [])
+
+  // Format UTC time function
+  const formatUTCTime = (date) => {
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    const hours = String(date.getUTCHours()).padStart(2, '0')
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+    const seconds = String(date.getUTCSeconds()).padStart(2, '0')
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`
+  }
+
   // Get the selected item from localStorage
   useEffect(() => {
     const item = localStorage.getItem("selectedMarketItem")
@@ -1226,18 +1249,6 @@ const Predict = () => {
       ctx.fillText(`${price.toFixed(1)}`, width - 5, y - 5)
     }
 
-    // Draw time labels on bottom of chart
-    ctx.textAlign = "center"
-    const timeLabels = 5
-    for (let i = 0; i < timeLabels; i++) {
-      const x = (i / (timeLabels - 1)) * width
-      const dataIndex = Math.floor((i / (timeLabels - 1)) * (visibleData.length - 1))
-      if (visibleData[dataIndex]) {
-        const time = visibleData[dataIndex].fullTime
-        ctx.fillText(time.toLocaleTimeString(), x, height - 5)
-      }
-    }
-
     // Draw the blue line first (always present but more subtle)
     // Create gradient for the chart area
     const blueGradient = ctx.createLinearGradient(0, 0, 0, height)
@@ -1408,60 +1419,126 @@ const Predict = () => {
     ctx.fillStyle = "rgba(255, 255, 255, 0.5)"
     ctx.font = "10px Arial"
     ctx.textAlign = "left"
-    ctx.fillText("Drag to scroll in any direction • Use zoom buttons to zoom in/out", 10, 15)
+    ctx.fillText("Drag to scroll in any direction • Use zoom buttons to zoom", 10, 15)
   }
 
   // Draw the stats chart
   const drawStatsChart = () => {
-    if (!coinStats || !statsChartRef.current) return
+    if (!statsChartRef.current || !selectedItem) return;
 
-    const canvas = statsChartRef.current
-    const ctx = canvas.getContext("2d")
-    const width = canvas.width
-    const height = canvas.height
+    const canvas = statsChartRef.current;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = Math.min(width, height) * 0.35;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
 
-    // Clear the canvas
-    ctx.clearRect(0, 0, width, height)
+    // Draw background arc
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, Math.PI, 0);
+    ctx.lineWidth = 20;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.stroke();
 
-    // Fill background
-    ctx.fillStyle = "#121621"
-    ctx.fillRect(0, 0, width, height)
+    // Calculate value angle (24h change)
+    const value = selectedItem.price_change_percentage_24h || 0;
+    const normalizedValue = Math.max(-20, Math.min(20, value));
+    const valueAngle = Math.PI + (normalizedValue / 20) * Math.PI;
 
-    // Draw circular gauge
-    const centerX = width / 2
-    const centerY = height / 2
-    const radius = Math.min(width, height) * 0.4
+    // Draw value arc with gradient
+    const gradient = ctx.createLinearGradient(0, 0, width, 0);
+    gradient.addColorStop(0, '#4CAF50');
+    gradient.addColorStop(0.5, '#FFC107');
+    gradient.addColorStop(1, '#F44336');
 
-    // Draw background circle
-    ctx.beginPath()
-    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
-    ctx.strokeStyle = "#333"
-    ctx.lineWidth = 20
-    ctx.stroke()
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, Math.PI, valueAngle);
+    ctx.lineWidth = 20;
+    ctx.strokeStyle = gradient;
+    ctx.stroke();
 
-    // Draw progress arc
-    const probability = coinStats.probabilityIncrease
-    const startAngle = -Math.PI / 2 // Start at top
-    const endAngle = startAngle + (probability / 100) * (2 * Math.PI)
+    // Draw tick marks
+    const tickLength = 10;
+    const tickWidth = 2;
+    const tickRadius = radius + 15;
+    
+    for (let i = 0; i <= 4; i++) {
+      const angle = Math.PI + (i / 4) * Math.PI;
+      const startX = centerX + (radius - tickLength) * Math.cos(angle);
+      const startY = centerY + (radius - tickLength) * Math.sin(angle);
+      const endX = centerX + (radius + tickLength) * Math.cos(angle);
+      const endY = centerY + (radius + tickLength) * Math.sin(angle);
 
-    ctx.beginPath()
-    ctx.arc(centerX, centerY, radius, startAngle, endAngle)
-    ctx.strokeStyle = "#5bc0de"
-    ctx.lineWidth = 20
-    ctx.stroke()
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.lineWidth = tickWidth;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.stroke();
 
-    // Draw text in center
-    ctx.fillStyle = "#fff"
-    ctx.font = "bold 36px Arial"
-    ctx.textAlign = "center"
-    ctx.textBaseline = "middle"
-    ctx.fillText(`${probability}%`, centerX, centerY)
+      // Draw labels
+      const labelX = centerX + (tickRadius + 20) * Math.cos(angle);
+      const labelY = centerY + (tickRadius + 20) * Math.sin(angle);
+      ctx.font = '12px Arial';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = i === 0 ? '-20%' : i === 1 ? '-10%' : i === 2 ? '0%' : i === 3 ? '+10%' : '+20%';
+      ctx.fillText(label, labelX, labelY);
+    }
 
-    // Draw label below
-    ctx.font = "16px Arial"
-    ctx.fillStyle = "#aaa"
-    ctx.fillText("Probability of increase in 1 day", centerX, centerY + radius + 40)
+    // Draw needle
+    const needleLength = radius * 0.9;
+    const needleWidth = 4;
+    const needleColor = value >= 0 ? '#4CAF50' : '#F44336';
+    
+    // Draw needle base
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw needle
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    const needleEndX = centerX + needleLength * Math.cos(valueAngle);
+    const needleEndY = centerY + needleLength * Math.sin(valueAngle);
+    ctx.lineTo(needleEndX, needleEndY);
+    ctx.lineWidth = needleWidth;
+    ctx.strokeStyle = needleColor;
+    ctx.stroke();
+
+    // Draw needle tip
+    ctx.beginPath();
+    ctx.arc(needleEndX, needleEndY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = needleColor;
+    ctx.fill();
+
+    // Draw center text
+    ctx.font = 'bold 16px Arial';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('24h Change', centerX, centerY - 20);
+    
+    ctx.font = 'bold 24px Arial';
+    ctx.fillStyle = needleColor;
+    ctx.fillText(`${value.toFixed(2)}%`, centerX, centerY + 20);
   }
+
+  // Add useEffect to redraw stats chart when coinStats changes
+  useEffect(() => {
+    if (showStats && coinStats) {
+      drawStatsChart()
+    }
+  }, [showStats, coinStats])
 
   // Handle timeframe change
   const handleTimeframeChange = (tf) => {
@@ -1524,7 +1601,7 @@ const Predict = () => {
       type: isProfit ? "profit" : "loss",
       message: isProfit ? "Prediction Successful!" : "Prediction Missed",
       details: `Your ${result.timeframe} prediction for ${result.assetName} ${isProfit ? "was correct" : "was incorrect"}. ${isProfit ? "Profit" : "Loss"}: ${result.percentageChange.toFixed(2)}%`,
-      icon: isProfit ? <ArrowUp /> : <ArrowDown />,
+      icon: isProfit ? <ArrowUp size={18} /> : <ArrowDown size={18} />,
       actions: [
         {
           label: "View Details",
@@ -1939,13 +2016,13 @@ const Predict = () => {
             </div>
           )}
           <div className="market-predict__timestamp">
-            {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}
+            {formatUTCTime(utcTime)}
           </div>
         </div>
       </div>
 
       <div className="market-predict__chart-container">
-        <div className="market-predict__chart-wrapper">
+        <div className="market-predict__chart-wrapper" style={{ width: !showStats && !showProbability ? '100%' : '70%' }}>
           {loading ? (
             <div className="market-predict__loading">
               <div className="market-predict__loader"></div>
@@ -1954,15 +2031,33 @@ const Predict = () => {
           ) : (
             <div className="market-predict__chart-container-inner">
               <div className="market-predict__chart-controls-overlay">
-                <button className="market-predict__chart-control-btn" onClick={handleZoomIn} title="Zoom In">
-                  <ZoomIn size={16} />
-                </button>
-                <button className="market-predict__chart-control-btn" onClick={handleZoomOut} title="Zoom Out">
-                  <ZoomOut size={16} />
-                </button>
-                <button className="market-predict__chart-control-btn" onClick={handleChartReset} title="Reset View">
-                  <Move size={16} />
-                </button>
+                <div className="market-predict__chart-instructions">
+                  <span className="market-predict__instruction-icon"><Move size={14} /></span>
+                  <span>Drag to scroll • Use buttons to zoom</span>
+                </div>
+                <div className="market-predict__zoom-controls">
+                  <button 
+                    className="market-predict__zoom-button" 
+                    onClick={handleZoomIn} 
+                    title="Zoom In"
+                  >
+                    <ZoomIn size={18} />
+                  </button>
+                  <button 
+                    className="market-predict__zoom-button" 
+                    onClick={handleZoomOut} 
+                    title="Zoom Out"
+                  >
+                    <ZoomOut size={18} />
+                  </button>
+                  <button 
+                    className="market-predict__zoom-button" 
+                    onClick={handleChartReset} 
+                    title="Reset View"
+                  >
+                    <Move size={18} />
+                  </button>
+                </div>
               </div>
               <canvas
                 ref={chartRef}
@@ -1980,271 +2075,116 @@ const Predict = () => {
           )}
         </div>
 
-        {/* Right panel - conditionally show either coin details, probability panel, or stats panel */}
-        {showStats ? (
+        {/* Right panel - conditionally show either probability panel or stats panel */}
+        {(showStats || showProbability) && (
           <motion.div
-            className="market-predict__probability-panel"
+            className={`market-predict__${showStats ? 'stats' : 'probability'}-panel`}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="market-predict__analysis-summary">
-              <div className="market-predict__confidence-meter">
-                <div className="market-predict__confidence-label">Confidence</div>
-                <div className="market-predict__confidence-bar">
-                  <div
-                    className="market-predict__confidence-value"
-                    style={{ width: `${probabilityData?.confidence || 75}%` }}
-                  ></div>
+            {showStats ? (
+              <div className="market-predict__stats-content">
+                <div className="market-predict__stats-gauge">
+                  <canvas ref={statsChartRef} width="250" height="250" className="market-predict__stats-chart"></canvas>
                 </div>
-                <div className="market-predict__confidence-percentage">{probabilityData?.confidence || 75}%</div>
-              </div>
-
-              <div className="market-predict__trend-indicator">
-                <div
-                  className={`market-predict__trend-badge market-predict__trend-badge--${probabilityData?.trend === "bullish" ? "bullish" : "bearish"}`}
-                >
-                  {/* Show Bullish if confidence is high (>70%) regardless of trend */}
-                  {(probabilityData?.confidence || 0) > 70
-                    ? "Bullish ▲"
-                    : probabilityData?.trend === "bullish"
-                      ? "Bullish ▲"
-                      : "Bearish ▼"}
-                </div>
-              </div>
-
-              <div className="market-predict__key-predictions">
-                <div className="market-predict__prediction-row">
-                  <div className="market-predict__prediction-label">Support:</div>
-                  <div className="market-predict__prediction-value">
-                    ${(probabilityData?.support || selectedItem.current_price * 0.95).toFixed(2)}
-                  </div>
-                </div>
-                <div className="market-predict__prediction-row">
-                  <div className="market-predict__prediction-label">Resistance:</div>
-                  <div className="market-predict__prediction-value">
-                    ${(probabilityData?.resistance || selectedItem.current_price * 1.05).toFixed(2)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="market-predict__metrics-mini">
-                <div className="market-predict__metric-mini">
-                  <div className="market-predict__metric-mini-label">Volatility</div>
-                  <div className="market-predict__metric-mini-value">
-                    {(probabilityData?.volatility || Math.abs(selectedItem.price_change_percentage_24h) * 0.5).toFixed(
-                      2,
-                    )}
-                    %
-                  </div>
-                </div>
-
-                <div className="market-predict__metric-mini">
-                  <div className="market-predict__metric-mini-label">Momentum</div>
-                  <div
-                    className={`market-predict__metric-mini-value ${(probabilityData?.momentum || 0) > 0 ? "market-predict__positive" : "market-predict__negative"}`}
-                  >
-                    {(probabilityData?.momentum || 0) > 0 ? "+" : ""}
-                    {(probabilityData?.momentum || 0).toFixed(2)}%
-                  </div>
-                </div>
-
-                <div className="market-predict__metric-mini">
-                  <div className="market-predict__metric-mini-label">Risk</div>
-                  <div className="market-predict__metric-mini-value">{probabilityData?.riskScore || 5}/10</div>
-                </div>
-
-                <div className="market-predict__metric-mini">
-                  <div className="market-predict__metric-mini-label">Confidence</div>
-                  <div className="market-predict__metric-mini-value">{probabilityData?.confidence || 75}%</div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ) : showProbability ? (
-          <motion.div
-            className="market-predict__stats-panel"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="market-predict__panel-header">
-              <h3>Stats</h3>
-              <PieChart size={16} className="market-predict__stats-icon" />
-            </div>
-            <div className="market-predict__stats-content">
-              <div className="market-predict__stats-gauge">
-                <canvas ref={statsChartRef} width="250" height="250" className="market-predict__stats-chart"></canvas>
-              </div>
-              {coinStats && (
-                <div className="market-predict__stats-info">
-                  <div className="market-predict__stats-row">
-                    <div className="market-predict__stats-label">Market Cap Rank</div>
-                    <div className="market-predict__stats-value">#{coinStats.marketCapRank}</div>
-                  </div>
-                  <div className="market-predict__stats-row">
-                    <div className="market-predict__stats-label">24h Change</div>
-                    <div
-                      className={`market-predict__stats-value ${coinStats.changePercent24Hr >= 0 ? "market-predict__stats-value--positive" : "market-predict__stats-value--negative"}`}
-                    >
-                      {coinStats.changePercent24Hr >= 0 ? "+" : ""}
-                      {coinStats.changePercent24Hr.toFixed(2)}%
+                {coinStats && (
+                  <div className="market-predict__stats-info">
+                    <div className="market-predict__stats-row">
+                      <div className="market-predict__stats-label">Market Cap Rank</div>
+                      <div className="market-predict__stats-value">#{coinStats.marketCapRank}</div>
                     </div>
-                  </div>
-                  <div className="market-predict__stats-row">
-                    <div className="market-predict__stats-label">Volatility</div>
-                    <div className="market-predict__stats-value">{coinStats.volatility.toFixed(2)}</div>
-                  </div>
-                  <div className="market-predict__stats-row">
-                    <div className="market-predict__stats-label">Market Share</div>
-                    <div className="market-predict__stats-value">{coinStats.marketShare.toFixed(2)}%</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            className="market-predict__coin-details-panel"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="market-predict__panel-header">
-              <h3>Coin Details</h3>
-              <Info size={16} className="market-predict__info-icon" />
-            </div>
-
-            {coinDetails && (
-              <div className="market-predict__coin-details-content">
-                <div className="market-predict__coin-description">
-                  <p>{coinDetails.description}</p>
-                </div>
-
-                <div className="market-predict__coin-metrics">
-                  <div className="market-predict__coin-metric">
-                    <div className="market-predict__metric-icon">
-                      <TrendingUp size={16} />
-                    </div>
-                    <div className="market-predict__metric-content">
-                      <div className="market-predict__metric-label">Market Dominance</div>
-                      <div className="market-predict__metric-value">{coinDetails.marketDominance.toFixed(2)}%</div>
-                    </div>
-                  </div>
-
-                  <div className="market-predict__coin-metric">
-                    <div className="market-predict__metric-icon">
-                      <BarChart2 size={16} />
-                    </div>
-                    <div className="market-predict__metric-content">
-                      <div className="market-predict__metric-label">Volatility Score</div>
-                      <div className="market-predict__metric-value">{coinDetails.volatilityScore.toFixed(1)}/10</div>
-                    </div>
-                  </div>
-
-                  <div className="market-predict__coin-metric">
-                    <div className="market-predict__metric-icon">
-                      <DollarSign size={16} />
-                    </div>
-                    <div className="market-predict__metric-content">
-                      <div className="market-predict__metric-label">All-Time High</div>
-                      <div className="market-predict__metric-value">
-                        ${formatNumber(coinDetails.priceHistory.allTimeHigh)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="market-predict__coin-metric">
-                    <div className="market-predict__metric-icon">
-                      <Clock size={16} />
-                    </div>
-                    <div className="market-predict__metric-content">
-                      <div className="market-predict__metric-label">YTD Change</div>
+                    <div className="market-predict__stats-row">
+                      <div className="market-predict__stats-label">24h Change</div>
                       <div
-                        className={`market-predict__metric-value ${coinDetails.priceHistory.yearToDateChange >= 0 ? "market-predict__positive" : "market-predict__negative"}`}
+                        className={`market-predict__stats-value ${coinStats.changePercent24Hr >= 0 ? "market-predict__stats-value--positive" : "market-predict__stats-value--negative"}`}
                       >
-                        {coinDetails.priceHistory.yearToDateChange >= 0 ? "+" : ""}
-                        {coinDetails.priceHistory.yearToDateChange}%
+                        {coinStats.changePercent24Hr >= 0 ? "+" : ""}
+                        {coinStats.changePercent24Hr.toFixed(2)}%
                       </div>
                     </div>
-                  </div>
-
-                  <div className="market-predict__coin-metric">
-                    <div className="market-predict__metric-icon">
-                      <Award size={16} />
+                    <div className="market-predict__stats-row">
+                      <div className="market-predict__stats-label">Volatility</div>
+                      <div className="market-predict__stats-value">{coinStats.volatility.toFixed(2)}</div>
                     </div>
-                    <div className="market-predict__metric-content">
-                      <div className="market-predict__metric-label">Liquidity Score</div>
-                      <div className="market-predict__metric-value">{coinDetails.liquidityScore}/100</div>
+                    <div className="market-predict__stats-row">
+                      <div className="market-predict__stats-label">Market Share</div>
+                      <div className="market-predict__stats-value">{coinStats.marketShare.toFixed(2)}%</div>
                     </div>
                   </div>
+                )}
+              </div>
+            ) : (
+              <div className="market-predict__analysis-summary">
+                <div className="market-predict__confidence-meter">
+                  <div className="market-predict__confidence-label">Confidence</div>
+                  <div className="market-predict__confidence-bar">
+                    <div
+                      className="market-predict__confidence-value"
+                      style={{ 
+                        width: `${probabilityData?.confidence || 75}%`,
+                        backgroundColor: `hsl(${(probabilityData?.confidence || 75) * 1.2}, 70%, 50%)`,
+                        height: '100%',
+                        transition: 'width 0.3s ease, background-color 0.3s ease'
+                      }}
+                    ></div>
+                  </div>
+                  <div className="market-predict__confidence-percentage">{probabilityData?.confidence || 75}%</div>
+                </div>
 
-                  <div className="market-predict__coin-metric">
-                    <div className="market-predict__metric-icon">
-                      <AlertTriangle size={16} />
+                <div className="market-predict__trend-indicator">
+                  <div
+                    className={`market-predict__trend-badge market-predict__trend-badge--${probabilityData?.trend === "bullish" ? "bullish" : "bearish"}`}
+                  >
+                    {(probabilityData?.confidence || 0) > 70
+                      ? "Bullish ▲"
+                      : probabilityData?.trend === "bullish"
+                        ? "Bullish ▲"
+                        : "Bearish ▼"}
+                  </div>
+                </div>
+
+                <div className="market-predict__key-predictions">
+                  <div className="market-predict__prediction-row">
+                    <div className="market-predict__prediction-label">Support:</div>
+                    <div className="market-predict__prediction-value">
+                      ${(probabilityData?.support || selectedItem.current_price * 0.95).toFixed(2)}
                     </div>
-                    <div className="market-predict__metric-content">
-                      <div className="market-predict__metric-label">Risk Level</div>
-                      <div className="market-predict__metric-value">
-                        {coinDetails.volatilityScore < 3 ? "Low" : coinDetails.volatilityScore < 7 ? "Medium" : "High"}
-                      </div>
+                  </div>
+                  <div className="market-predict__prediction-row">
+                    <div className="market-predict__prediction-label">Resistance:</div>
+                    <div className="market-predict__prediction-value">
+                      ${(probabilityData?.resistance || selectedItem.current_price * 1.05).toFixed(2)}
                     </div>
                   </div>
                 </div>
 
-                <div className="market-predict__market-sentiment">
-                  <h4>Market Sentiment</h4>
-                  <div className="market-predict__sentiment-bars">
-                    <div className="market-predict__sentiment-bar">
-                      <div className="market-predict__sentiment-label">Bullish</div>
-                      <div className="market-predict__sentiment-progress">
-                        <div
-                          className="market-predict__sentiment-progress-bar market-predict__sentiment-progress-bar--bullish"
-                          style={{ width: `${coinDetails.sentimentData.bullish}%` }}
-                        ></div>
-                      </div>
-                      <div className="market-predict__sentiment-value">{coinDetails.sentimentData.bullish}%</div>
-                    </div>
-
-                    <div className="market-predict__sentiment-bar">
-                      <div className="market-predict__sentiment-label">Bearish</div>
-                      <div className="market-predict__sentiment-progress">
-                        <div
-                          className="market-predict__sentiment-progress-bar market-predict__sentiment-progress-bar--bearish"
-                          style={{ width: `${coinDetails.sentimentData.bearish}%` }}
-                        ></div>
-                      </div>
-                      <div className="market-predict__sentiment-value">{coinDetails.sentimentData.bearish}%</div>
-                    </div>
-
-                    <div className="market-predict__sentiment-bar">
-                      <div className="market-predict__sentiment-label">Neutral</div>
-                      <div className="market-predict__sentiment-progress">
-                        <div
-                          className="market-predict__sentiment-progress-bar market-predict__sentiment-progress-bar--neutral"
-                          style={{ width: `${coinDetails.sentimentData.neutral}%` }}
-                        ></div>
-                      </div>
-                      <div className="market-predict__sentiment-value">{coinDetails.sentimentData.neutral}%</div>
+                <div className="market-predict__metrics-mini">
+                  <div className="market-predict__metric-mini">
+                    <div className="market-predict__metric-mini-label">Volatility</div>
+                    <div className="market-predict__metric-mini-value">
+                      {(probabilityData?.volatility || Math.abs(selectedItem.price_change_percentage_24h) * 0.5).toFixed(2)}%
                     </div>
                   </div>
-                </div>
 
-                <div className="market-predict__exchange-distribution">
-                  <h4>Trading Volume by Exchange</h4>
-                  <div className="market-predict__exchange-bars">
-                    {coinDetails.exchanges.map((exchange, index) => (
-                      <div className="market-predict__exchange-bar" key={index}>
-                        <div className="market-predict__exchange-label">{exchange.name}</div>
-                        <div className="market-predict__exchange-progress">
-                          <div
-                            className="market-predict__exchange-progress-bar"
-                            style={{ width: `${exchange.percentage}%` }}
-                          ></div>
-                        </div>
-                        <div className="market-predict__exchange-value">{exchange.percentage}%</div>
-                      </div>
-                    ))}
+                  <div className="market-predict__metric-mini">
+                    <div className="market-predict__metric-mini-label">Momentum</div>
+                    <div
+                      className={`market-predict__metric-mini-value ${(probabilityData?.momentum || 0) > 0 ? "market-predict__positive" : "market-predict__negative"}`}
+                    >
+                      {(probabilityData?.momentum || 0) > 0 ? "+" : ""}
+                      {(probabilityData?.momentum || 0).toFixed(2)}%
+                    </div>
+                  </div>
+
+                  <div className="market-predict__metric-mini">
+                    <div className="market-predict__metric-mini-label">Risk</div>
+                    <div className="market-predict__metric-mini-value">{probabilityData?.riskScore || 5}/10</div>
+                  </div>
+
+                  <div className="market-predict__metric-mini">
+                    <div className="market-predict__metric-mini-label">Confidence</div>
+                    <div className="market-predict__metric-mini-value">{probabilityData?.confidence || 75}%</div>
                   </div>
                 </div>
               </div>
@@ -2282,7 +2222,7 @@ const Predict = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              Stats
+              Probability
             </motion.button>
             <motion.button
               className={`market-predict__control-button market-predict__stats-button ${showStats ? "market-predict__stats-button--active" : ""}`}
@@ -2290,7 +2230,7 @@ const Predict = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              Probability
+              Stats
             </motion.button>
             <motion.button
               className="market-predict__control-button market-predict__portfolio-button"
@@ -2331,6 +2271,111 @@ const Predict = () => {
                 {selectedItem.ath
                   ? formatNumber(selectedItem.ath)
                   : formatNumber(selectedItem.current_price * (1 + Math.random()))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Coin Data Section */}
+        <div className="market-predict__coin-data">
+          <h2>Coin Details</h2>
+          <div className="market-predict__coin-description">
+            <p>{coinDetails?.description || generateCoinDescription(selectedItem)}</p>
+          </div>
+          
+          <div className="market-predict__metrics-grid">
+            <div className="market-predict__metric-item">
+              <div className="market-predict__metric-label">
+                <TrendingUp size={16} />
+                Price Change (24h)
+              </div>
+              <div className={`market-predict__metric-value ${selectedItem.price_change_percentage_24h >= 0 ? 'positive' : 'negative'}`}>
+                {selectedItem.price_change_percentage_24h >= 0 ? '+' : ''}
+                {selectedItem.price_change_percentage_24h?.toFixed(2)}%
+              </div>
+            </div>
+            
+            <div className="market-predict__metric-item">
+              <div className="market-predict__metric-label">
+                <BarChart2 size={16} />
+                Market Dominance
+              </div>
+              <div className="market-predict__metric-value">
+                {((selectedItem.market_cap / 2500000000000) * 100).toFixed(2)}%
+              </div>
+            </div>
+
+            <div className="market-predict__metric-item">
+              <div className="market-predict__metric-label">
+                <DollarSign size={16} />
+                Price (USD)
+              </div>
+              <div className="market-predict__metric-value">
+                ${selectedItem.current_price.toLocaleString()}
+              </div>
+            </div>
+
+            <div className="market-predict__metric-item">
+              <div className="market-predict__metric-label">
+                <Clock size={16} />
+                Last Updated
+              </div>
+              <div className="market-predict__metric-value">
+                {new Date().toLocaleTimeString()}
+              </div>
+            </div>
+          </div>
+
+          <div className="market-predict__sentiment-bars">
+            <h3>Market Sentiment</h3>
+            <div className="market-predict__sentiment-item">
+              <div className="market-predict__sentiment-label">
+                <Award size={16} />
+                Confidence Score
+              </div>
+              <div className="market-predict__sentiment-bar">
+                <div 
+                  className="market-predict__sentiment-fill" 
+                  style={{ 
+                    width: `${probabilityData?.confidence || 75}%`,
+                    backgroundColor: `hsl(${(probabilityData?.confidence || 75) * 1.2}, 70%, 50%)`
+                  }}
+                ></div>
+                <span className="market-predict__sentiment-value">{probabilityData?.confidence || 75}%</span>
+              </div>
+            </div>
+
+            <div className="market-predict__sentiment-item">
+              <div className="market-predict__sentiment-label">
+                <AlertTriangle size={16} />
+                Risk Level
+              </div>
+              <div className="market-predict__sentiment-bar">
+                <div 
+                  className="market-predict__sentiment-fill" 
+                  style={{ 
+                    width: `${(probabilityData?.riskScore || 5) * 10}%`,
+                    backgroundColor: `hsl(${120 - ((probabilityData?.riskScore || 5) * 12)}, 70%, 50%)`
+                  }}
+                ></div>
+                <span className="market-predict__sentiment-value">{probabilityData?.riskScore || 5}/10</span>
+              </div>
+            </div>
+
+            <div className="market-predict__sentiment-item">
+              <div className="market-predict__sentiment-label">
+                <PieChart size={16} />
+                Market Stability
+              </div>
+              <div className="market-predict__sentiment-bar">
+                <div 
+                  className="market-predict__sentiment-fill" 
+                  style={{ 
+                    width: `${100 - (probabilityData?.volatility || 25)}%`,
+                    backgroundColor: `hsl(${120 - (probabilityData?.volatility || 25)}, 70%, 50%)`
+                  }}
+                ></div>
+                <span className="market-predict__sentiment-value">{100 - (probabilityData?.volatility || 25)}%</span>
               </div>
             </div>
           </div>
