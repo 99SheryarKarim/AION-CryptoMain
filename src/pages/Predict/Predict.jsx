@@ -141,7 +141,7 @@ const Predict = () => {
     // Draw price line
     ctx.beginPath()
     ctx.strokeStyle = '#5bc0de'
-    ctx.lineWidth = 1 // Reduced from 2 to 1
+    ctx.lineWidth = 1
 
     let firstValidPoint = true
     chartData.forEach((point, index) => {
@@ -159,6 +159,35 @@ const Predict = () => {
     })
 
     ctx.stroke()
+    ctx.restore()
+
+    // Draw UTC time labels on x-axis (bottom) - outside of zoom transformation
+    const timeLabels = 6
+    for (let i = 0; i <= timeLabels; i++) {
+      const x = padding + (chartWidth * (i / timeLabels))
+      const timeIndex = Math.floor((chartData.length - 1) * (i / timeLabels))
+      if (chartData[timeIndex] && chartData[timeIndex].fullTime) {
+        const time = new Date(chartData[timeIndex].fullTime)
+        if (!isNaN(time.getTime())) {
+          const utcTime = time.toUTCString().split(' ')[4]
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
+          ctx.font = '12px Arial'
+          ctx.textAlign = 'center'
+          ctx.fillText(utcTime, x, height - 10)
+        }
+      }
+    }
+
+    // Draw UTC time labels on y-axis (right) - outside of zoom transformation
+    const priceLabels = 5
+    for (let i = 0; i <= priceLabels; i++) {
+      const y = padding + (chartHeight * (1 - i / priceLabels))
+      const price = minValue + (valueRange * (i / priceLabels))
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
+      ctx.font = '12px Arial'
+      ctx.textAlign = 'left'
+      ctx.fillText(price.toFixed(2), width - padding + 5, y + 4)
+    }
   }
 
   const [utcTime, setUtcTime] = useState(new Date())
@@ -1334,10 +1363,10 @@ const Predict = () => {
                 const time = new Date(chartData[timeIndex].fullTime);
                 if (!isNaN(time.getTime())) {
                     const utcTime = time.toUTCString().split(' ')[4];
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                    ctx.font = '12px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(utcTime, x, height - padding + 20);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
+                    ctx.font = '12px Arial'
+                    ctx.textAlign = 'center'
+                    ctx.fillText(utcTime, x, height - 10);
                 }
             }
         }
@@ -2098,23 +2127,23 @@ const Predict = () => {
                 flexDirection: 'column', 
                 gap: '8px'
               }}>
-                <div className="market-predict__confidence-meter">
-                  <div className="market-predict__confidence-label">Confidence</div>
-                  <div className="market-predict__confidence-bar">
+                <div className="market-predict__confidence-meter" style={{ background: 'transparent', padding: '8px', marginBottom: '8px' }}>
+                  <div className="market-predict__confidence-label" style={{ marginBottom: '4px' }}>Confidence</div>
+                  <div className="market-predict__confidence-bar" style={{ backgroundColor: 'transparent', marginBottom: '4px' }}>
                     <div
                       className="market-predict__confidence-value"
                       style={{ 
                         width: `${probabilityData?.confidence || 75}%`,
-                        backgroundColor: `hsl(${(probabilityData?.confidence || 75) * 1.2}, 70%, 50%)`,
+                        backgroundColor: `hsl(180, 70%, 70%)`,
                         height: '100%',
                         transition: 'width 0.3s ease, background-color 0.3s ease'
                       }}
                     ></div>
                   </div>
-                  <div className="market-predict__confidence-percentage">{probabilityData?.confidence || 75}%</div>
+                  <div className="market-predict__confidence-percentage" style={{ marginBottom: '4px' }}>{probabilityData?.confidence || 75}%</div>
                 </div>
 
-                <div className="market-predict__trend-indicator">
+                <div className="market-predict__trend-indicator" style={{ marginBottom: '4px' }}>
                   <div
                     className={`market-predict__trend-badge market-predict__trend-badge--${probabilityData?.trend === "bullish" ? "bullish" : "bearish"}`}
                   >
@@ -2126,14 +2155,14 @@ const Predict = () => {
                   </div>
                 </div>
 
-                <div className="market-predict__key-predictions">
-                  <div className="market-predict__prediction-row">
+                <div className="market-predict__key-predictions" style={{ marginBottom: '4px' }}>
+                  <div className="market-predict__prediction-row" style={{ marginBottom: '2px' }}>
                     <div className="market-predict__prediction-label">Support:</div>
                     <div className="market-predict__prediction-value">
                       ${(probabilityData?.support || selectedItem.current_price * 0.95).toFixed(2)}
                     </div>
                   </div>
-                  <div className="market-predict__prediction-row">
+                  <div className="market-predict__prediction-row" style={{ marginBottom: '2px' }}>
                     <div className="market-predict__prediction-label">Resistance:</div>
                     <div className="market-predict__prediction-value">
                       ${(probabilityData?.resistance || selectedItem.current_price * 1.05).toFixed(2)}
