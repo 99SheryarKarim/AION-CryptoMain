@@ -68,6 +68,12 @@ const Predict = () => {
 
   const [utcTime, setUtcTime] = useState(new Date())
 
+  // Add rate limiter state
+  const [requestQueue, setRequestQueue] = useState([])
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false)
+  const lastRequestTime = useRef(0)
+  const MIN_REQUEST_INTERVAL = 1000 // 1 second between requests
+
   // Add useEffect for live UTC time updates
   useEffect(() => {
     const timer = setInterval(() => {
@@ -261,22 +267,69 @@ const Predict = () => {
     }
   }
 
-  // Fetch coin details from CoinCap API with improved error handling and retries
+  // Enhanced fetch with rate limiting
+  const fetchWithRateLimit = async (url, options = {}) => {
+    const now = Date.now()
+    const timeSinceLastRequest = now - lastRequestTime.current
+
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      // Queue the request
+      return new Promise((resolve, reject) => {
+        setRequestQueue(prev => [...prev, { url, options, resolve, reject }])
+      })
+    }
+
+    lastRequestTime.current = now
+    return fetchWithTimeout(url, options)
+  }
+
+  // Process request queue
+  useEffect(() => {
+    if (requestQueue.length > 0 && !isProcessingQueue) {
+      setIsProcessingQueue(true)
+      const processNextRequest = async () => {
+        if (requestQueue.length === 0) {
+          setIsProcessingQueue(false)
+          return
+        }
+
+        const now = Date.now()
+        const timeSinceLastRequest = now - lastRequestTime.current
+
+        if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+          await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest))
+        }
+
+        const request = requestQueue[0]
+        try {
+          const response = await fetchWithTimeout(request.url, request.options)
+          request.resolve(response)
+        } catch (error) {
+          request.reject(error)
+        }
+
+        setRequestQueue(prev => prev.slice(1))
+        lastRequestTime.current = Date.now()
+        processNextRequest()
+      }
+
+      processNextRequest()
+    }
+  }, [requestQueue, isProcessingQueue])
+
+  // Update fetchCoinDetails to use rate-limited fetch
   const fetchCoinDetails = async (item) => {
     if (!item) return
 
     try {
-      // Try to get the correct ID for CoinCap API
-      // CoinCap uses lowercase symbol or ID
       const symbol = item.symbol.toLowerCase()
       const id = item.id ? item.id.toLowerCase() : symbol
 
-      // Try multiple API endpoints with retry logic
       let data = null
 
-      // First try CoinCap API with ID
+      // First try CoinGecko API
       try {
-        const response = await fetchWithTimeout(`https://api.coincap.io/v2/assets/${id}`, {
+        const response = await fetchWithRateLimit(`https://api.coingecko.com/api/v3/coins/${id}`, {
           timeout: 5000,
         })
 
@@ -285,62 +338,48 @@ const Predict = () => {
           data = jsonData
         }
       } catch (err) {
-        console.log(`CoinCap API with ID ${id} failed: ${err.message}`)
+        console.log(`CoinGecko API with ID ${id} failed: ${err.message}`)
       }
 
-      // If ID didn't work, try with symbol
+      // If CoinGecko fails, try CoinCap as fallback
       if (!data) {
         try {
-          const symbolResponse = await fetchWithTimeout(`https://api.coincap.io/v2/assets/${symbol}`, {
+          const response = await fetchWithRateLimit(`https://api.coincap.io/v2/assets/${id}`, {
             timeout: 5000,
           })
 
-          if (symbolResponse.ok) {
-            const jsonData = await symbolResponse.json()
+          if (response.ok) {
+            const jsonData = await response.json()
             data = jsonData
           }
         } catch (err) {
-          console.log(`CoinCap API with symbol ${symbol} failed: ${err.message}`)
+          console.log(`CoinCap API with ID ${id} failed: ${err.message}`)
         }
       }
 
-      // Try CoinGecko API as a fallback
+      // If both APIs fail, try with symbol
       if (!data) {
         try {
-          const geckoResponse = await fetchWithTimeout(
-            `https://api.coingecko.com/api/v3/coins/${id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`,
-            { timeout: 5000 },
-          )
+          const response = await fetchWithRateLimit(`https://api.coingecko.com/api/v3/coins/${symbol}`, {
+            timeout: 5000,
+          })
 
-          if (geckoResponse.ok) {
-            const geckoData = await geckoResponse.json()
-            // Transform CoinGecko data to match our expected format
-            data = {
-              data: {
-                id: geckoData.id,
-                name: geckoData.name,
-                symbol: geckoData.symbol.toUpperCase(),
-                priceUsd: geckoData.market_data.current_price.usd.toString(),
-                marketCapUsd: geckoData.market_data.market_cap.usd.toString(),
-                volumeUsd24Hr: geckoData.market_data.total_volume.usd.toString(),
-                supply: geckoData.market_data.circulating_supply?.toString() || "0",
-                maxSupply: geckoData.market_data.total_supply?.toString() || "0",
-                changePercent24Hr: geckoData.market_data.price_change_percentage_24h?.toString() || "0",
-                vwap24Hr: "0", // CoinGecko doesn't provide VWAP
-                explorer: geckoData.links?.blockchain_site?.[0] || "",
-                rank: geckoData.market_cap_rank?.toString() || "0",
-              },
-            }
+          if (response.ok) {
+            const jsonData = await response.json()
+            data = jsonData
           }
         } catch (err) {
-          console.log(`CoinGecko API failed: ${err.message}`)
+          console.log(`CoinGecko API with symbol ${symbol} failed: ${err.message}`)
         }
       }
 
-      // If we have data from any source, process it
-      if (data && data.data) {
-        processApiData(data, item)
-        // Reset retry count on success
+      // Process the data if we have it
+      if (data) {
+        if (data.data) { // CoinCap format
+          processApiData(data, item)
+        } else { // CoinGecko format
+          processCoinGeckoData(data, item)
+        }
         apiRetryCount.current = 0
       } else {
         throw new Error("Could not fetch data from any API")
@@ -369,6 +408,78 @@ const Predict = () => {
         })
       }
     }
+  }
+
+  // Add new function to process CoinGecko data
+  const processCoinGeckoData = (data, item) => {
+    if (!data) {
+      generateCoinDetails(item)
+      return
+    }
+
+    // Calculate additional metrics
+    const marketDominance = (data.market_data.market_cap.usd / 2500000000000) * 100 // Assuming total market cap of 2.5T
+    const volatilityScore = data.market_data.price_change_percentage_24h
+      ? Math.abs(data.market_data.price_change_percentage_24h) / 2
+      : Math.random() * 5
+
+    // Generate random sentiment data (this would ideally come from a sentiment analysis API)
+    const sentimentData = {
+      bullish: Math.floor(Math.random() * 70) + 30,
+      bearish: Math.floor(Math.random() * 40),
+      neutral: Math.floor(Math.random() * 30),
+    }
+
+    // Normalize sentiment to 100%
+    const total = sentimentData.bullish + sentimentData.bearish + sentimentData.neutral
+    sentimentData.bullish = Math.floor((sentimentData.bullish / total) * 100)
+    sentimentData.bearish = Math.floor((sentimentData.bearish / total) * 100)
+    sentimentData.neutral = 100 - sentimentData.bullish - sentimentData.bearish
+
+    // Fetch market data for exchanges (in a real app, this would come from an API)
+    const exchanges = [
+      { name: "Binance", volume: Math.floor(Math.random() * 40) + 20 },
+      { name: "Coinbase", volume: Math.floor(Math.random() * 30) + 10 },
+      { name: "Kraken", volume: Math.floor(Math.random() * 20) + 5 },
+      { name: "FTX", volume: Math.floor(Math.random() * 15) + 5 },
+      { name: "Others", volume: Math.floor(Math.random() * 20) + 5 },
+    ]
+
+    // Normalize exchange volume to 100%
+    const totalVolume = exchanges.reduce((sum, exchange) => sum + exchange.volume, 0)
+    exchanges.forEach((exchange) => {
+      exchange.percentage = Math.floor((exchange.volume / totalVolume) * 100)
+    })
+
+    // Set coin details with API data
+    setCoinDetails({
+      id: data.id,
+      name: data.name,
+      symbol: data.symbol,
+      priceUsd: data.market_data.current_price.usd,
+      marketCapUsd: data.market_data.market_cap.usd,
+      volumeUsd24Hr: data.market_data.total_volume.usd,
+      supply: data.market_data.circulating_supply,
+      maxSupply: data.market_data.max_supply,
+      changePercent24Hr: data.market_data.price_change_percentage_24h,
+      vwap24Hr: data.market_data.current_price.usd,
+      explorer: data.links.blockchain_site[0],
+      rank: data.market_cap_rank,
+      marketDominance,
+      volatilityScore,
+      liquidityScore: Math.min(95, Math.max(30, Math.floor(Math.random() * 100))),
+      sentimentData,
+      exchanges,
+      description: data.description.en || generateCoinDescription(item),
+      priceHistory: {
+        allTimeHigh: data.market_data.ath.usd,
+        allTimeLow: data.market_data.atl.usd,
+        yearToDateChange: data.market_data.price_change_percentage_1y || Math.floor(Math.random() * 200) - 50,
+      },
+    })
+
+    // Generate stats for the Stats tab
+    generateCoinStats(data)
   }
 
   // Helper function to fetch with timeout
@@ -696,34 +807,32 @@ const Predict = () => {
 
   // Enhanced fetchFromCoinCap with rate limit handling and retries
   const fetchFromCoinCap = async (id, symbol, tf) => {
-    const headers = COINCAP_API_KEY ? { Authorization: `Bearer ${COINCAP_API_KEY}` } : {}
-
     try {
       // Add delay between requests to respect rate limits
       await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY))
 
-      const symbolResponse = await fetchWithTimeout(
-        `${COINCAP_API_BASE_URL}/assets/${id.toLowerCase()}`,
-        { headers, timeout: 5000 }
+      const response = await fetchWithRateLimit(
+        `https://api.coincap.io/v2/assets/${id.toLowerCase()}`,
+        { timeout: 5000 }
       )
 
-      if (!symbolResponse.ok) {
-        if (symbolResponse.status === 429) {
+      if (!response.ok) {
+        if (response.status === 429) {
           // Rate limit hit - wait longer and retry
           await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY * 2))
           return fetchFromCoinCap(id, symbol, tf) // Retry
         }
-        throw new Error(`CoinCap API error: ${symbolResponse.status}`)
+        throw new Error(`CoinCap API error: ${response.status}`)
       }
 
-      const symbolData = await symbolResponse.json()
+      const data = await response.json()
 
       // Get historical data with rate limit handling
       await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY))
 
-      const historyResponse = await fetchWithTimeout(
-        `${COINCAP_API_BASE_URL}/assets/${id.toLowerCase()}/history?interval=${timeframeToInterval(tf)}&start=${getStartTime(tf)}&end=${Date.now()}`,
-        { headers, timeout: 5000 }
+      const historyResponse = await fetchWithRateLimit(
+        `https://api.coincap.io/v2/assets/${id.toLowerCase()}/history?interval=${timeframeToInterval(tf)}&start=${getStartTime(tf)}&end=${Date.now()}`,
+        { timeout: 5000 }
       )
 
       if (!historyResponse.ok) {
@@ -737,7 +846,7 @@ const Predict = () => {
 
       const historyData = await historyResponse.json()
       return {
-        currentPrice: parseFloat(symbolData.data.priceUsd),
+        currentPrice: parseFloat(data.data.priceUsd),
         historicalData: historyData.data.map((item) => ({
           time: new Date(item.time),
           price: parseFloat(item.priceUsd),
@@ -759,34 +868,36 @@ const Predict = () => {
 
     // Try multiple APIs in sequence with proper error handling
     try {
-      // First try CoinCap API
+      // First try CoinGecko API
       try {
-        const data = await fetchFromCoinCap(id, symbol, tf)
-        if (data && data.historicalData.length > 10) {
-          return data.historicalData
-        }
-      } catch (error) {
-        console.log("CoinCap API failed:", error.message)
-      }
+        const days = tf === "24h" ? 1 : tf === "4h" ? 0.17 : tf === "1h" ? 0.042 : 0.021
+        const response = await fetchWithRateLimit(
+          `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`,
+          { timeout: 5000 }
+        )
 
-      // If CoinCap fails, try CoinGecko
-      try {
-        const geckoData = await fetchFromCoinGecko(id, symbol, tf)
-        if (geckoData && geckoData.length > 10) {
-          return geckoData
+        if (response.ok) {
+          const data = await response.json()
+          if (data.prices && data.prices.length > 0) {
+            return data.prices.map(([timestamp, price]) => ({
+              time: new Date(timestamp).toLocaleTimeString(),
+              price: price,
+              fullTime: new Date(timestamp),
+            }))
+          }
         }
       } catch (error) {
         console.log("CoinGecko API failed:", error.message)
       }
 
-      // Try Binance API as a third option
+      // If CoinGecko fails, try CoinCap
       try {
-        const binanceData = await fetchFromBinance(symbol, tf)
-        if (binanceData && binanceData.length > 10) {
-          return binanceData
+        const data = await fetchFromCoinCap(id, symbol, tf)
+        if (data && data.historicalData.length > 0) {
+          return data.historicalData
         }
       } catch (error) {
-        console.log("Binance API failed:", error.message)
+        console.log("CoinCap API failed:", error.message)
       }
 
       // If all APIs fail, throw error to trigger fallback

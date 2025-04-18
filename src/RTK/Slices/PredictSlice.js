@@ -2,12 +2,35 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit"
 import axios from "axios"
 import { API_BASE_URL, ENDPOINTS, RETRY_DELAY, MAX_RETRIES } from "../../config"
 
-// Helper function for retrying failed requests
+// Rate limiting configuration
+const MIN_REQUEST_INTERVAL = 1000 // 1 second between requests
+let lastRequestTime = 0
+const requestQueue = []
+let isProcessingQueue = false
+
+// Enhanced retry request with rate limiting
 const retryRequest = async (requestFn, retries = MAX_RETRIES, delay = RETRY_DELAY) => {
+  const processRequest = async () => {
+    const now = Date.now()
+    const timeSinceLastRequest = now - lastRequestTime
+
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest))
+    }
+
+    lastRequestTime = Date.now()
+    return await requestFn()
+  }
+
   for (let i = 0; i < retries; i++) {
     try {
-      return await requestFn()
+      return await processRequest()
     } catch (error) {
+      if (error.response?.status === 429) {
+        // If rate limited, wait longer before retrying
+        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)))
+        continue
+      }
       if (i === retries - 1) throw error
       await new Promise(resolve => setTimeout(resolve, delay))
     }
@@ -45,6 +68,9 @@ export const PredictNextPrice = createAsyncThunk(
       )
       return response.data
     } catch (error) {
+      if (error.response?.status === 429) {
+        return rejectWithValue("Rate limit exceeded. Please wait a moment and try again.")
+      }
       return rejectWithValue(error.response?.data?.message || "Failed to predict next price")
     }
   }
