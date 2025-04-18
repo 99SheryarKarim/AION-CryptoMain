@@ -74,6 +74,10 @@ const Predict = () => {
   const lastRequestTime = useRef(0)
   const MIN_REQUEST_INTERVAL = 1000 // 1 second between requests
 
+  // Add this state at the top with other state declarations
+  const [predictedPrice, setPredictedPrice] = useState(null)
+  const [showPrediction, setShowPrediction] = useState(false)
+
   // Add useEffect for live UTC time updates
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1025,7 +1029,7 @@ const Predict = () => {
 
   // Fetch historical data for the chart - only when predict is clicked
   const fetchChartData = async () => {
-    if (!selectedItem) return
+    if (!selectedItem) return []
 
     setLoading(true)
     setError(null)
@@ -1064,55 +1068,15 @@ const Predict = () => {
         throw new Error("All retry attempts failed")
       }
 
-      // Apply smooth transition to new data
-      const oldData = [...chartData]
-      const transitionData = (progress) => {
-        const blendedData = data.map((newPoint, i) => {
-          const oldPoint = oldData[i] || oldData[oldData.length - 1] || newPoint
-          return {
-            time: newPoint.time,
-            price: oldPoint.price + (newPoint.price - oldPoint.price) * progress,
-            fullTime: newPoint.fullTime,
-          }
-        })
-        setChartData(blendedData)
-        if (progress < 1) {
-          animationRef.current = requestAnimationFrame(() => transitionData(Math.min(1, progress + 0.05)))
-        }
-      }
-
-      // Start the transition animation
-      transitionData(0)
-
       // Generate extended data for scrolling
       const extendedData = generateExtendedHistoricalData(data, selectedItem)
       setExtendedChartData(extendedData)
 
-      setLoading(false)
-
-      // Clear any previous error notifications
-      if (notification && notification.type === "error") {
-        setNotification(null)
-      }
+      return data
     } catch (err) {
       console.error("Error fetching historical data:", err)
-
-      // Generate realistic data based on the selected item as a last resort
-      const mockData = generateRealisticData(selectedItem, pendingTimeframe || timeframe)
-      setChartData(mockData)
-
-      // Generate extended data for scrolling
-      const extendedData = generateExtendedHistoricalData(mockData, selectedItem)
-      setExtendedChartData(extendedData)
-
-      // Show notification but don't show error in UI to avoid alarming users
-      showNotification({
-        type: "info",
-        message: "Using market simulation",
-        details:
-          "Real-time data temporarily unavailable. Using advanced market simulation. Please check your internet connection or try again later.",
-      })
-
+      throw err
+    } finally {
       setLoading(false)
     }
   }
@@ -1512,7 +1476,7 @@ const Predict = () => {
         // Draw prediction point marker
         ctx.beginPath()
         ctx.arc(x, y, 6, 0, 2 * Math.PI)
-        ctx.fillStyle = "#ff9632"
+        ctx.fillStyle = predictionPoint.isTemporary ? "#ff9632" : "#ff4444"
         ctx.fill()
         ctx.strokeStyle = "#ffffff"
         ctx.lineWidth = 2
@@ -1526,11 +1490,15 @@ const Predict = () => {
     ctx.shadowOffsetX = 0
     ctx.shadowOffsetY = 0
 
-    // Draw chart controls instructions
-    ctx.fillStyle = "rgba(255, 255, 255, 0.5)"
+    // Draw price labels on right side
+    ctx.fillStyle = "#999"
     ctx.font = "10px Arial"
-    ctx.textAlign = "left"
-    ctx.fillText("Drag to scroll in any direction • Use zoom buttons to zoom", 10, 15)
+    ctx.textAlign = "right"
+    for (let i = 0; i < 6; i++) {
+      const y = height - i * (height / 5)
+      const price = adjustedMinPrice + (i / 5) * adjustedPriceRange
+      ctx.fillText(`${price.toFixed(1)}`, width - 5, y - 5)
+    }
   }
 
   // Draw the stats chart
@@ -1695,13 +1663,14 @@ const Predict = () => {
     // Also set as current notification for backward compatibility
     setNotification(newNotification)
 
-    // Auto-remove after 5 seconds
+    // Auto-remove after duration or default 5 seconds
+    const duration = notificationData.duration || 5000
     notificationTimeoutRef.current = setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== newNotification.id))
       if (notification && notification.id === newNotification.id) {
         setNotification(null)
       }
-    }, 5000)
+    }, duration)
   }
 
   // Show prediction result notification
@@ -1744,10 +1713,39 @@ const Predict = () => {
     try {
       setIsPredicting(true)
       setError(null)
+      setShowPrediction(false)
 
-      // Fetch chart data first
-      await fetchChartData()
+      // Show immediate feedback
+      showNotification({
+        type: "info",
+        message: "Making prediction...",
+        details: "Analyzing market data",
+      })
 
+      // Get current chart data for immediate update
+      const currentChartData = chartData.length > 0 ? chartData : await fetchChartData()
+      
+      // Immediately update chart with a temporary prediction line
+      const lastTime = currentChartData[currentChartData.length - 1]?.fullTime || new Date()
+      const nextTime = new Date(lastTime.getTime() + getTimeframeMilliseconds(timeframe))
+      
+      // Calculate a temporary predicted price based on the last known price
+      const lastPrice = currentChartData[currentChartData.length - 1]?.price || selectedItem.current_price
+      const tempPredictedPrice = lastPrice * (1 + (Math.random() * 0.02 - 0.01)) // Small random variation
+
+      const tempChartData = [
+        ...currentChartData,
+        {
+          time: nextTime.toLocaleTimeString(),
+          price: tempPredictedPrice,
+          isPrediction: true,
+          isTemporary: true,
+          fullTime: nextTime,
+        }
+      ]
+
+      setChartData(tempChartData)
+      
       // Dispatch prediction action with current symbol and timeframe
       const result = await dispatch(PredictNextPrice({ 
         symbol: selectedItem.symbol, 
@@ -1755,25 +1753,25 @@ const Predict = () => {
       })).unwrap()
 
       if (result.predicted_price) {
-        // Show success notification
-        showPredictionResultNotification({
-          success: true,
-          price: result.predicted_price,
-          timeframe,
-        })
+        // Update the predicted price in state
+        setPredictedPrice(result.predicted_price)
+        setShowPrediction(true)
 
-        // Update chart with new prediction
-        setChartData((prevData) => {
-          const lastTime = prevData[prevData.length - 1]?.time
-          const nextTime = lastTime ? new Date(new Date(lastTime).getTime() + getTimeframeMilliseconds(timeframe)) : new Date()
-
-          return [...prevData, {
+        // Update chart with actual prediction
+        const updatedChartData = [
+          ...currentChartData,
+          {
             time: nextTime.toLocaleTimeString(),
             price: result.predicted_price,
             isPrediction: true,
+            isTemporary: false,
             fullTime: nextTime,
-          }]
-        })
+          }
+        ]
+
+        setChartData(updatedChartData)
+        generatePredictionData()
+        setShowProbability(true)
       }
     } catch (error) {
       console.error("Prediction failed:", error)
@@ -1991,6 +1989,57 @@ const Predict = () => {
     }
   }
 
+  // Add these styles to your CSS
+  const styles = `
+    .market-predict__coin-price-info {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+    }
+
+    .market-predict__current-price {
+      font-size: 24px;
+      font-weight: bold;
+      color: #e0e0e0;
+    }
+
+    .market-predict__predicted-price {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+      margin: 4px 0;
+    }
+
+    .market-predict__predicted-label {
+      color: #999;
+    }
+
+    .market-predict__predicted-value {
+      color: #ff4444;
+      font-weight: 500;
+    }
+
+    .market-predict__timestamp {
+      font-size: 14px;
+      color: #999;
+    }
+  `
+
+  // Add the styles to the document
+  useEffect(() => {
+    const styleElement = document.createElement('style')
+    styleElement.textContent = styles
+    document.head.appendChild(styleElement)
+    return () => {
+      document.head.removeChild(styleElement)
+    }
+  }, [])
+
   if (!selectedItem) {
     return (
       <div className="market-predict__loading">
@@ -2045,27 +2094,10 @@ const Predict = () => {
                 </div>
                 <div className="market-predict__notification-text">
                   <h4>{notif.message}</h4>
-                  <p>{notif.details}</p>
-
-                  {/* Prediction result specific content */}
-                  {(notif.type === "profit" || notif.type === "loss") && (
-                    <div
-                      className={`market-predict__prediction-result market-predict__prediction-result--${notif.type}`}
-                    >
-                      <div
-                        className={`market-predict__prediction-result-icon market-predict__prediction-result-icon--${notif.type}`}
-                      >
-                        {notif.type === "profit" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                      </div>
-                      <div
-                        className={`market-predict__prediction-result-text market-predict__prediction-result-text--${notif.type}`}
-                      >
-                        {notif.type === "profit" ? "Profit" : "Loss"}:
-                        <span className="market-predict__prediction-result-value">
-                          {notif.percentageChange ? `${Math.abs(notif.percentageChange).toFixed(2)}%` : ""}
-                        </span>
-                      </div>
-                    </div>
+                  {typeof notif.details === 'string' ? (
+                    <p>{notif.details}</p>
+                  ) : (
+                    notif.details
                   )}
                 </div>
                 <button
@@ -2077,25 +2109,6 @@ const Predict = () => {
                   ×
                 </button>
               </div>
-
-              {/* Action buttons */}
-              {notif.actions && notif.actions.length > 0 && (
-                <div className="market-predict__notification-actions">
-                  {notif.actions.map((action, index) => (
-                    <button
-                      key={index}
-                      className={`market-predict__notification-action ${action.primary ? "market-predict__notification-action--primary" : "market-predict__notification-action--secondary"}`}
-                      onClick={() => {
-                        action.onClick()
-                        setNotifications((prev) => prev.filter((n) => n.id !== notif.id))
-                      }}
-                    >
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               <div className="market-predict__notification-progress">
                 <div className="market-predict__notification-progress-bar"></div>
               </div>
@@ -2115,17 +2128,31 @@ const Predict = () => {
             <h1>
               #{selectedItem.market_cap_rank} {selectedItem.name} ({selectedItem.symbol.toUpperCase()})
             </h1>
+            {showPrediction && predictedPrice && (
+              <div style={{ 
+                marginTop: '8px',
+                padding: '8px',
+                backgroundColor: 'rgba(255, 68, 68, 0.1)',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <TrendingUp size={20} color="#ff4444" />
+                <div>
+                  <div style={{ fontSize: '16px', color: '#999' }}>Predicted Price</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff4444' }}>
+                    ${predictedPrice.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="market-predict__coin-price-info">
-          <div className="market-predict__current-price">${selectedItem.current_price.toLocaleString()}</div>
-          {isPredicting && predicted_next_price && (
-            <div
-              className={`market-predict__predicted-price ${(predicted_next_price || 0) > selectedItem.current_price ? "market-predict__positive" : "market-predict__negative"}`}
-            >
-              Predicted: ${predicted_next_price.toLocaleString()}
-            </div>
-          )}
+          <div className="market-predict__current-price">
+            ${selectedItem.current_price.toLocaleString()}
+          </div>
           <div className="market-predict__timestamp">
             {formatUTCTime(utcTime)}
           </div>
@@ -2134,56 +2161,45 @@ const Predict = () => {
 
       <div className="market-predict__chart-container">
         <div className="market-predict__chart-wrapper" style={{ width: !showStats && !showProbability ? '100%' : '70%' }}>
-          {loading ? (
-            <div className="market-predict__loading">
-              <div className="market-predict__loader"></div>
-              <p>Loading chart data...</p>
-            </div>
-          ) : (
-            <div className="market-predict__chart-container-inner">
-              <div className="market-predict__chart-controls-overlay">
-                <div className="market-predict__chart-instructions">
-                  <span className="market-predict__instruction-icon"><Move size={14} /></span>
-                  <span>Drag to scroll • Use buttons to zoom</span>
-                </div>
-                <div className="market-predict__zoom-controls">
-                  <button 
-                    className="market-predict__zoom-button" 
-                    onClick={handleZoomIn} 
-                    title="Zoom In"
-                  >
-                    <ZoomIn size={18} />
-                  </button>
-                  <button 
-                    className="market-predict__zoom-button" 
-                    onClick={handleZoomOut} 
-                    title="Zoom Out"
-                  >
-                    <ZoomOut size={18} />
-                  </button>
-                  <button 
-                    className="market-predict__zoom-button" 
-                    onClick={handleChartReset} 
-                    title="Reset View"
-                  >
-                    <Move size={18} />
-                  </button>
-                </div>
+          <div className="market-predict__chart-container-inner">
+            <div className="market-predict__chart-controls-overlay">
+              <div className="market-predict__zoom-controls">
+                <button 
+                  className="market-predict__zoom-button" 
+                  onClick={handleZoomIn} 
+                  title="Zoom In"
+                >
+                  <ZoomIn size={18} />
+                </button>
+                <button 
+                  className="market-predict__zoom-button" 
+                  onClick={handleZoomOut} 
+                  title="Zoom Out"
+                >
+                  <ZoomOut size={18} />
+                </button>
+                <button 
+                  className="market-predict__zoom-button" 
+                  onClick={handleChartReset} 
+                  title="Reset View"
+                >
+                  <Move size={18} />
+                </button>
               </div>
-              <canvas
-                ref={chartRef}
-                width="800"
-                height="250"
-                className="market-predict__price-chart"
-                onMouseDown={handleChartMouseDown}
-                onTouchStart={handleChartTouchStart}
-                onTouchMove={handleChartTouchMove}
-                onTouchEnd={handleChartTouchEnd}
-                style={{ cursor: isDragging ? "grabbing" : "grab" }}
-              ></canvas>
-              {error && <div className="market-predict__error">{error}</div>}
             </div>
-          )}
+            <canvas
+              ref={chartRef}
+              width="800"
+              height="250"
+              className="market-predict__price-chart"
+              onMouseDown={handleChartMouseDown}
+              onTouchStart={handleChartTouchStart}
+              onTouchMove={handleChartTouchMove}
+              onTouchEnd={handleChartTouchEnd}
+              style={{ cursor: isDragging ? "grabbing" : "grab" }}
+            ></canvas>
+            {error && <div className="market-predict__error">{error}</div>}
+          </div>
         </div>
 
         {/* Right panel - conditionally show either probability panel or stats panel */}
