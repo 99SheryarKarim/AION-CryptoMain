@@ -61,10 +61,105 @@ const Predict = () => {
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState(0)
   const [extendedChartData, setExtendedChartData] = useState([])
-
-  // Add Y-axis scrolling state
   const [chartVerticalOffset, setChartVerticalOffset] = useState(0)
   const [dragStartY, setDragStartY] = useState(0)
+
+  // Chart interaction functions
+  const handleZoomIn = () => {
+    setChartScale(prev => Math.min(prev * 1.2, 3))
+  }
+
+  const handleZoomOut = () => {
+    setChartScale(prev => Math.max(prev / 1.2, 0.5))
+  }
+
+  const handleChartReset = () => {
+    setChartScale(1)
+    setChartOffset(0)
+    setChartVerticalOffset(0)
+  }
+
+  const handleChartTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      setIsDragging(true)
+      setDragStart(e.touches[0].clientX)
+      setDragStartY(e.touches[0].clientY)
+    }
+  }
+
+  const handleChartTouchMove = (e) => {
+    if (!isDragging || e.touches.length !== 1) return
+
+    const deltaX = e.touches[0].clientX - dragStart
+    const deltaY = e.touches[0].clientY - dragStartY
+
+    setChartOffset(prev => prev + deltaX)
+    setChartVerticalOffset(prev => prev + deltaY)
+
+    setDragStart(e.touches[0].clientX)
+    setDragStartY(e.touches[0].clientY)
+  }
+
+  const handleChartTouchEnd = () => {
+    setIsDragging(false)
+  }
+
+  const drawChart = () => {
+    if (!chartRef.current || !chartData.length) return
+
+    const canvas = chartRef.current
+    const ctx = canvas.getContext('2d')
+    const width = canvas.width
+    const height = canvas.height
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height)
+
+    // Set transparent background
+    ctx.fillStyle = 'transparent'
+    ctx.fillRect(0, 0, width, height)
+
+    // Calculate chart dimensions
+    const padding = 40
+    const chartWidth = width - padding * 2
+    const chartHeight = height - padding * 2
+
+    // Find min and max values
+    const values = chartData.map(d => d.price).filter(v => !isNaN(v) && v !== undefined)
+    if (values.length === 0) return
+    
+    const minValue = Math.min(...values)
+    const maxValue = Math.max(...values)
+    const valueRange = maxValue - minValue || 1
+
+    // Apply zoom and offset transformations
+    ctx.save()
+    ctx.translate(width / 2, height / 2)
+    ctx.scale(chartScale, chartScale)
+    ctx.translate(-width / 2 + chartOffset, -height / 2 + chartVerticalOffset)
+
+    // Draw price line
+    ctx.beginPath()
+    ctx.strokeStyle = '#5bc0de'
+    ctx.lineWidth = 1 // Reduced from 2 to 1
+
+    let firstValidPoint = true
+    chartData.forEach((point, index) => {
+      if (!point || point.price === undefined || isNaN(point.price)) return
+
+      const x = padding + (chartWidth * (index / (chartData.length - 1)))
+      const y = padding + (chartHeight * (1 - (point.price - minValue) / valueRange))
+
+      if (firstValidPoint) {
+        ctx.moveTo(x, y)
+        firstValidPoint = false
+      } else {
+        ctx.lineTo(x, y)
+      }
+    })
+
+    ctx.stroke()
+  }
 
   const [utcTime, setUtcTime] = useState(new Date())
 
@@ -1177,101 +1272,6 @@ const Predict = () => {
     if (!isDragging || !chartRef.current) return
 
     const canvas = chartRef.current
-    const deltaX = e.clientX - dragStart
-    const deltaY = e.clientY - dragStartY
-
-    // Update chart offset based on drag distance (X-axis)
-    setChartOffset((prev) => {
-      // Calculate new offset with bounds
-      const maxOffset = extendedChartData.length - chartData.length
-      return Math.max(0, Math.min(maxOffset, prev - deltaX / 10))
-    })
-
-    // Update vertical offset (Y-axis)
-    setChartVerticalOffset((prev) => {
-      // Limit vertical scrolling to a reasonable range
-      return Math.max(-100, Math.min(100, prev + deltaY))
-    })
-
-    // Update drag start position
-    setDragStart(e.clientX)
-    setDragStartY(e.clientY)
-  }
-
-  // Handle mouse up to end dragging
-  const handleChartMouseUp = () => {
-    setIsDragging(false)
-
-    // Remove event listeners
-    document.removeEventListener("mousemove", handleChartMouseMove)
-    document.removeEventListener("mouseup", handleChartMouseUp)
-  }
-
-  // Handle zoom in
-  const handleZoomIn = () => {
-    setChartScale((prev) => Math.min(prev * 1.2, 5))
-  }
-
-  // Handle zoom out
-  const handleZoomOut = () => {
-    setChartScale((prev) => Math.max(prev / 1.2, 0.5))
-  }
-
-  // Handle chart reset
-  const handleChartReset = () => {
-    setChartScale(1)
-    setChartOffset(0)
-    setChartVerticalOffset(0)
-  }
-
-  // Add touch event handlers for mobile support
-  const handleChartTouchStart = (e) => {
-    if (!chartRef.current || e.touches.length !== 1) return
-
-    setIsDragging(true)
-    setDragStart(e.touches[0].clientX)
-    setDragStartY(e.touches[0].clientY)
-
-    // Prevent default to avoid page scrolling
-    e.preventDefault()
-  }
-
-  const handleChartTouchMove = (e) => {
-    if (!isDragging || !chartRef.current || e.touches.length !== 1) return
-
-    const deltaX = e.touches[0].clientX - dragStart
-    const deltaY = e.touches[0].clientY - dragStartY
-
-    // Update chart offset based on drag distance (X-axis)
-    setChartOffset((prev) => {
-      // Calculate new offset with bounds
-      const maxOffset = extendedChartData.length - chartData.length
-      return Math.max(0, Math.min(maxOffset, prev - deltaX / 10))
-    })
-
-    // Update vertical offset (Y-axis)
-    setChartVerticalOffset((prev) => {
-      // Limit vertical scrolling to a reasonable range
-      return Math.max(-100, Math.min(100, prev + deltaY))
-    })
-
-    // Update drag start position
-    setDragStart(e.touches[0].clientX)
-    setDragStartY(e.touches[0].clientY)
-
-    // Prevent default to avoid page scrolling
-    e.preventDefault()
-  }
-
-  const handleChartTouchEnd = () => {
-    setIsDragging(false)
-  }
-
-  // Draw the chart using canvas
-  const drawChart = () => {
-    if (!chartRef.current || !chartData.length) return;
-
-    const canvas = chartRef.current;
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
     const height = canvas.height;
@@ -1280,6 +1280,7 @@ const Predict = () => {
     ctx.clearRect(0, 0, width, height);
 
     // Set background
+    ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#0a0e17';
     ctx.fillRect(0, 0, width, height);
 
@@ -1289,10 +1290,12 @@ const Predict = () => {
     const chartHeight = height - padding * 2;
 
     // Find min and max values
-    const values = chartData.map(d => d.value);
+    const values = chartData.map(d => d.price).filter(v => !isNaN(v) && v !== undefined);
+    if (values.length === 0) return;
+    
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
-    const valueRange = maxValue - minValue;
+    const valueRange = maxValue - minValue || 1; // Prevent division by zero
 
     // Draw grid lines
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
@@ -1327,32 +1330,40 @@ const Predict = () => {
         // Draw UTC time labels
         if (i < timeLabels) {
             const timeIndex = Math.floor((chartData.length - 1) * (i / timeLabels));
-            const time = new Date(chartData[timeIndex].timestamp);
-            const utcTime = time.toUTCString().split(' ')[4]; // Get UTC time in HH:MM:SS format
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.font = '12px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(utcTime, x, height - padding + 20);
+            if (chartData[timeIndex] && chartData[timeIndex].fullTime) {
+                const time = new Date(chartData[timeIndex].fullTime);
+                if (!isNaN(time.getTime())) {
+                    const utcTime = time.toUTCString().split(' ')[4];
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(utcTime, x, height - padding + 20);
+                }
+            }
         }
     }
 
     // Draw price line
-    ctx.beginPath();
-    ctx.strokeStyle = '#5bc0de';
-    ctx.lineWidth = 2;
+    ctx.beginPath()
+    ctx.strokeStyle = '#5bc0de'
+    ctx.lineWidth = 1 // Reduced from 2 to 1
 
+    let firstValidPoint = true
     chartData.forEach((point, index) => {
-        const x = padding + (chartWidth * (index / (chartData.length - 1)));
-        const y = padding + (chartHeight * (1 - (point.value - minValue) / valueRange));
+      if (!point || point.price === undefined || isNaN(point.price)) return
 
-        if (index === 0) {
-            ctx.moveTo(x, y);
-        } else {
-            ctx.lineTo(x, y);
-        }
-    });
+      const x = padding + (chartWidth * (index / (chartData.length - 1)))
+      const y = padding + (chartHeight * (1 - (point.price - minValue) / valueRange))
 
-    ctx.stroke();
+      if (firstValidPoint) {
+        ctx.moveTo(x, y)
+        firstValidPoint = false
+      } else {
+        ctx.lineTo(x, y)
+      }
+    })
+
+    ctx.stroke()
   }
 
   // Draw the stats chart
@@ -1373,7 +1384,7 @@ const Predict = () => {
     // Draw background arc
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, Math.PI, 0);
-    ctx.lineWidth = 20;
+    ctx.lineWidth = 8; // Reduced from 20 to 8
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.stroke();
 
@@ -1390,7 +1401,7 @@ const Predict = () => {
 
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, Math.PI, valueAngle);
-    ctx.lineWidth = 20;
+    ctx.lineWidth = 8; // Reduced from 20 to 8
     ctx.strokeStyle = gradient;
     ctx.stroke();
 
@@ -1999,7 +2010,7 @@ const Predict = () => {
       </div>
 
       <div className="market-predict__chart-container">
-        <div className="market-predict__chart-wrapper" style={{ width: !showStats && !showProbability ? '100%' : '70%' }}>
+        <div className="market-predict__chart-wrapper" style={{ width: !showStats && !showProbability ? '100%' : '70%', height: '107%' }}>
           <div className="market-predict__chart-container-inner">
             <div className="market-predict__chart-controls-overlay" style={{ left: '10px', right: 'auto' }}>
               <div className="market-predict__zoom-controls">
