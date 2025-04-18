@@ -704,11 +704,11 @@ const Predict = () => {
   // Generate a description for the coin
   const generateCoinDescription = (item) => {
     const descriptions = [
-      `${item.name} is a decentralized digital currency that enables instant payments to anyone, anywhere in the world.`,
-      `${item.name} is a blockchain platform that enables developers to build and deploy decentralized applications.`,
-      `${item.name} is a digital asset designed to work as a medium of exchange that uses strong cryptography to secure financial transactions.`,
-      `${item.name} is a cryptocurrency that aims to offer fast, secure, and low-cost digital payments through a decentralized peer-to-peer network.`,
-      `${item.name} is a next-generation blockchain platform designed for scalability, security, and sustainability.`,
+      `${item.name} is a leading cryptocurrency with strong market presence. It offers fast, secure transactions and has a growing ecosystem of applications.`,
+      `${item.name} is a digital currency designed for secure, instant payments. It operates on a decentralized network and has significant market adoption.`,
+      `${item.name} is a blockchain-based cryptocurrency focused on scalability and security. It has established itself as a major player in the crypto market.`,
+      `${item.name} is a prominent cryptocurrency known for its robust technology and active development. It has gained significant market traction and user adoption.`,
+      `${item.name} is a well-established cryptocurrency with a strong development team and active community. It offers innovative blockchain solutions.`
     ]
 
     return descriptions[Math.floor(Math.random() * descriptions.length)]
@@ -1269,236 +1269,90 @@ const Predict = () => {
 
   // Draw the chart using canvas
   const drawChart = () => {
-    const canvas = chartRef.current
-    const ctx = canvas.getContext("2d")
+    if (!chartRef.current || !chartData.length) return;
 
-    // Enable anti-aliasing for smoother lines
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = "high"
+    const canvas = chartRef.current;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
 
-    const width = canvas.width
-    const height = 250 // Fixed height
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
 
-    // Set canvas height
-    canvas.height = height
+    // Set background
+    ctx.fillStyle = '#0a0e17';
+    ctx.fillRect(0, 0, width, height);
 
-    // Clear the canvas
-    ctx.clearRect(0, 0, width, height)
+    // Calculate chart dimensions
+    const padding = 40;
+    const chartWidth = width - padding * 2;
+    const chartHeight = height - padding * 2;
 
-    // Fill background - dark background like in the image
-    ctx.fillStyle = "#0a0e17"
-    ctx.fillRect(0, 0, width, height)
+    // Find min and max values
+    const values = chartData.map(d => d.value);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const valueRange = maxValue - minValue;
 
-    // Get visible data based on offset and scale
-    const startIdx = Math.floor(chartOffset)
-    const visibleCount = Math.ceil(chartData.length / chartScale)
+    // Draw grid lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 1;
 
-    // Ensure we have data to display
-    if (extendedChartData.length === 0) return
+    // Draw horizontal grid lines
+    const gridLines = 5;
+    for (let i = 0; i <= gridLines; i++) {
+        const y = padding + (chartHeight * (1 - i / gridLines));
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(width - padding, y);
+        ctx.stroke();
 
-    // Get the visible portion of data
-    const visibleData = extendedChartData.slice(startIdx, Math.min(startIdx + visibleCount, extendedChartData.length))
-
-    if (visibleData.length === 0) return
-
-    // Calculate min and max prices for scaling
-    const prices = visibleData.map((d) => d.price)
-    const minPrice = Math.min(...prices) * 0.99
-    const maxPrice = Math.max(...prices) * 1.01
-    const priceRange = maxPrice - minPrice
-
-    // Apply vertical offset to the chart
-    const verticalOffsetFactor = chartVerticalOffset / height
-    const adjustedMinPrice = minPrice - priceRange * verticalOffsetFactor
-    const adjustedMaxPrice = maxPrice - priceRange * verticalOffsetFactor
-    const adjustedPriceRange = adjustedMaxPrice - adjustedMinPrice
-
-    // Draw price labels on right side of the chart only
-    ctx.fillStyle = "#999"
-    ctx.font = "10px Arial"
-    ctx.textAlign = "right"
-
-    for (let i = 0; i < 6; i++) {
-      const y = height - i * (height / 5)
-      const price = adjustedMinPrice + (i / 5) * adjustedPriceRange
-      ctx.fillText(`${price.toFixed(1)}`, width - 5, y - 5)
+        // Draw value labels
+        const value = minValue + (valueRange * (i / gridLines));
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText(value.toFixed(2), padding - 5, y + 4);
     }
 
-    // Draw the blue line first (always present but more subtle)
-    // Create gradient for the chart area
-    const blueGradient = ctx.createLinearGradient(0, 0, 0, height)
-    blueGradient.addColorStop(0, "rgba(91, 192, 222, 0.08)")
-    blueGradient.addColorStop(0.5, "rgba(91, 192, 222, 0.04)")
-    blueGradient.addColorStop(1, "rgba(91, 192, 222, 0)")
+    // Draw vertical grid lines and UTC time labels
+    const timeLabels = 6;
+    for (let i = 0; i <= timeLabels; i++) {
+        const x = padding + (chartWidth * (i / timeLabels));
+        ctx.beginPath();
+        ctx.moveTo(x, padding);
+        ctx.lineTo(x, height - padding);
+        ctx.stroke();
 
-    // Draw filled area under the blue line
-    ctx.beginPath()
-    ctx.fillStyle = blueGradient
-
-    // Start at the bottom left
-    ctx.moveTo(0, height)
-
-    // Draw the line path with vertical offset
-    for (let i = 0; i < visibleData.length; i++) {
-      const x = (i / (visibleData.length - 1)) * width
-      const y = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
-      ctx.lineTo(x, y)
-    }
-
-    // Complete the path to the bottom right
-    ctx.lineTo(width, height)
-    ctx.closePath()
-    ctx.fill()
-
-    // Add subtle shadow effect for the blue line
-    ctx.shadowColor = "rgba(91, 192, 222, 0.2)"
-    ctx.shadowBlur = 3
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 1
-
-    // Draw the blue line (more subtle)
-    ctx.beginPath()
-    ctx.strokeStyle = "rgba(91, 192, 222, 0.5)"
-    ctx.lineWidth = 1.5
-
-    // Use bezier curves for smoother lines
-    if (visibleData.length > 0) {
-      ctx.moveTo(0, height - ((visibleData[0].price - adjustedMinPrice) / adjustedPriceRange) * height)
-
-      for (let i = 1; i < visibleData.length; i++) {
-        const x = (i / (visibleData.length - 1)) * width
-        const y = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
-        const prevX = ((i - 1) / (visibleData.length - 1)) * width
-        const prevY = height - ((visibleData[i - 1].price - adjustedMinPrice) / adjustedPriceRange) * height
-
-        // Control points for the curve
-        const cpX1 = prevX + (x - prevX) / 3
-        const cpX2 = prevX + (2 * (x - prevX)) / 3
-
-        ctx.bezierCurveTo(cpX1, prevY, cpX2, y, x, y)
-      }
-    }
-
-    ctx.stroke()
-
-    // If predicting, also draw the orange line with higher frequency
-    if (isPredicting || chartData.some((point) => point.isPrediction)) {
-      // Reset shadow for orange line
-      ctx.shadowColor = "rgba(255, 150, 50, 0.8)"
-      ctx.shadowBlur = 12
-      ctx.shadowOffsetX = 0
-      ctx.shadowOffsetY = 4
-
-      // Create orange gradient for the area under the orange line
-      const orangeGradient = ctx.createLinearGradient(0, 0, 0, height)
-      orangeGradient.addColorStop(0, "rgba(255, 150, 50, 0.2)")
-      orangeGradient.addColorStop(0.5, "rgba(255, 150, 50, 0.1)")
-      orangeGradient.addColorStop(1, "rgba(255, 150, 50, 0)")
-
-      // Find where the prediction starts
-      const predictionStartIndex = visibleData.findIndex((point) => point.isPrediction)
-      const hasPredictionPoint = predictionStartIndex !== -1
-
-      // First draw the filled area
-      ctx.beginPath()
-      ctx.fillStyle = orangeGradient
-      ctx.moveTo(0, height)
-
-      // Define volatilityFactor here
-      const volatilityFactor = 0.03
-
-      for (let i = 0; i < visibleData.length; i++) {
-        const x = (i / (visibleData.length - 1)) * width
-
-        // Add sine wave to create higher frequency, but only for prediction points
-        const sineWave =
-          hasPredictionPoint && i >= predictionStartIndex
-            ? Math.sin(i * 0.5) * volatilityFactor * adjustedPriceRange
-            : 0
-
-        const baseY = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
-        const y = baseY + sineWave
-
-        ctx.lineTo(x, y)
-      }
-
-      ctx.lineTo(width, height)
-      ctx.closePath()
-      ctx.fill()
-
-      // Then draw the orange line itself (more prominent)
-      ctx.beginPath()
-      ctx.strokeStyle = "#ff9632"
-      ctx.lineWidth = 3.5
-
-      // Use bezier curves for smoother lines
-      if (visibleData.length > 0) {
-        const firstY = height - ((visibleData[0].price - adjustedMinPrice) / adjustedPriceRange) * height
-        ctx.moveTo(0, firstY)
-
-        for (let i = 1; i < visibleData.length; i++) {
-          const x = (i / (visibleData.length - 1)) * width
-          const prevX = ((i - 1) / (visibleData.length - 1)) * width
-
-          // Add sine wave to create higher frequency, but only for prediction points
-          const sineWave =
-            hasPredictionPoint && i >= predictionStartIndex
-              ? Math.sin(i * 0.5) * volatilityFactor * adjustedPriceRange
-              : 0
-          const prevSineWave =
-            hasPredictionPoint && i - 1 >= predictionStartIndex
-              ? Math.sin((i - 1) * 0.5) * volatilityFactor * adjustedPriceRange
-              : 0
-
-          const baseY = height - ((visibleData[i].price - adjustedMinPrice) / adjustedPriceRange) * height
-          const y = baseY + sineWave
-
-          const prevBaseY = height - ((visibleData[i - 1].price - adjustedMinPrice) / adjustedPriceRange) * height
-          const prevY = prevBaseY + prevSineWave
-
-          // Control points for the curve
-          const cpX1 = prevX + (x - prevX) / 3
-          const cpX2 = prevX + (2 * (x - prevX)) / 3
-
-          ctx.bezierCurveTo(cpX1, prevY, cpX2, y, x, y)
+        // Draw UTC time labels
+        if (i < timeLabels) {
+            const timeIndex = Math.floor((chartData.length - 1) * (i / timeLabels));
+            const time = new Date(chartData[timeIndex].timestamp);
+            const utcTime = time.toUTCString().split(' ')[4]; // Get UTC time in HH:MM:SS format
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(utcTime, x, height - padding + 20);
         }
-      }
-
-      ctx.stroke()
-
-      // If we have a prediction point, add a marker
-      const predictionPoint = visibleData.find((point) => point.isPrediction)
-      if (predictionPoint) {
-        const pointIndex = visibleData.indexOf(predictionPoint)
-        const x = (pointIndex / (visibleData.length - 1)) * width
-        const y = height - ((predictionPoint.price - adjustedMinPrice) / adjustedPriceRange) * height
-
-        // Draw prediction point marker
-        ctx.beginPath()
-        ctx.arc(x, y, 6, 0, 2 * Math.PI)
-        ctx.fillStyle = predictionPoint.isTemporary ? "#ff9632" : "#ff4444"
-        ctx.fill()
-        ctx.strokeStyle = "#ffffff"
-        ctx.lineWidth = 2
-        ctx.stroke()
-      }
     }
 
-    // Reset shadow for other elements
-    ctx.shadowColor = "transparent"
-    ctx.shadowBlur = 0
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
+    // Draw price line
+    ctx.beginPath();
+    ctx.strokeStyle = '#5bc0de';
+    ctx.lineWidth = 2;
 
-    // Draw price labels on right side
-    ctx.fillStyle = "#999"
-    ctx.font = "10px Arial"
-    ctx.textAlign = "right"
-    for (let i = 0; i < 6; i++) {
-      const y = height - i * (height / 5)
-      const price = adjustedMinPrice + (i / 5) * adjustedPriceRange
-      ctx.fillText(`${price.toFixed(1)}`, width - 5, y - 5)
-    }
+    chartData.forEach((point, index) => {
+        const x = padding + (chartWidth * (index / (chartData.length - 1)));
+        const y = padding + (chartHeight * (1 - (point.value - minValue) / valueRange));
+
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+
+    ctx.stroke();
   }
 
   // Draw the stats chart
@@ -1997,7 +1851,6 @@ const Predict = () => {
       align-items: flex-end;
       gap: 4px;
       padding: 8px;
-      background: rgba(0, 0, 0, 0.2);
       border-radius: 8px;
     }
 
@@ -2128,31 +1981,17 @@ const Predict = () => {
             <h1>
               #{selectedItem.market_cap_rank} {selectedItem.name} ({selectedItem.symbol.toUpperCase()})
             </h1>
-            {showPrediction && predictedPrice && (
-              <div style={{ 
-                marginTop: '8px',
-                padding: '8px',
-                backgroundColor: 'rgba(255, 68, 68, 0.1)',
-                borderRadius: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <TrendingUp size={20} color="#ff4444" />
-                <div>
-                  <div style={{ fontSize: '16px', color: '#999' }}>Predicted Price</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff4444' }}>
-                    ${predictedPrice.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
         <div className="market-predict__coin-price-info">
-          <div className="market-predict__current-price">
+          <div className="market-predict__current-price" style={{ color: '#22d3ee', fontSize: '29px' }}>
             ${selectedItem.current_price.toLocaleString()}
           </div>
+          {showPrediction && predictedPrice && (
+            <div className="market-predict__predicted-price" style={{ color: '#ff4444', fontSize: '28px' }}>
+              ${predictedPrice.toLocaleString()}
+            </div>
+          )}
           <div className="market-predict__timestamp">
             {formatUTCTime(utcTime)}
           </div>
@@ -2162,7 +2001,7 @@ const Predict = () => {
       <div className="market-predict__chart-container">
         <div className="market-predict__chart-wrapper" style={{ width: !showStats && !showProbability ? '100%' : '70%' }}>
           <div className="market-predict__chart-container-inner">
-            <div className="market-predict__chart-controls-overlay">
+            <div className="market-predict__chart-controls-overlay" style={{ left: '10px', right: 'auto' }}>
               <div className="market-predict__zoom-controls">
                 <button 
                   className="market-predict__zoom-button" 
@@ -2190,7 +2029,7 @@ const Predict = () => {
             <canvas
               ref={chartRef}
               width="800"
-              height="250"
+              height="240"
               className="market-predict__price-chart"
               onMouseDown={handleChartMouseDown}
               onTouchStart={handleChartTouchStart}
